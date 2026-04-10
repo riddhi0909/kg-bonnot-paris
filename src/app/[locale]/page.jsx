@@ -1,0 +1,557 @@
+import { getClient } from "@/apollo/register-client";
+import { homePath } from "@/constants/routes";
+import { buildPageMetadata } from "@/lib/seo/build-metadata";
+import { fetchProductCategories , fetchCategoryWithProducts } from "@/modules/category/services/category-service";
+import { HomePageFigma } from "@/modules/home/components/HomePageFigma";
+import { fetchPageByUri, fetchPages, fetchHomeOptions, fetchCategoryReviewsSettings, fetchBeforeFooterSettings } from "@/modules/cms/services/cms-page-service";
+import { fetchProducts } from "@/modules/product/services/product-service";
+import { fetchInstagramFeeds } from "@/modules/cms/services/cms-page-service";
+function toText(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+function firstSelectedCategory(raw) {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return raw.find(Boolean) ?? null;
+  if (Array.isArray(raw?.nodes)) return raw.nodes.find(Boolean) ?? null;
+  if (Array.isArray(raw?.edges)) return raw.edges.map((e) => e?.node).find(Boolean) ?? null;
+  if (raw?.node) return raw.node;
+  return raw;
+}
+
+function selectedNodes(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter(Boolean);
+  if (Array.isArray(raw?.nodes)) return raw.nodes.filter(Boolean);
+  if (Array.isArray(raw?.edges)) return raw.edges.map((e) => e?.node).filter(Boolean);
+  if (raw?.node) return [raw.node].filter(Boolean);
+  return [raw].filter(Boolean);
+}
+
+function selectedNodesFromCategoryCard(rawCategoryCard) {
+  const rows = Array.isArray(rawCategoryCard)
+    ? rawCategoryCard
+    : rawCategoryCard
+      ? [rawCategoryCard]
+      : [];
+  return rows.flatMap((row) => selectedNodes(row?.selectCategory ?? row?.select_category));
+}
+
+function categoryCardButtonTextBySlug(rawCategoryCard) {
+  const rows = Array.isArray(rawCategoryCard)
+    ? rawCategoryCard
+    : rawCategoryCard
+      ? [rawCategoryCard]
+      : [];
+  const map = new Map();
+  for (const row of rows) {
+    const txt = toText(row?.categoryButtonText ?? row?.category_button_text);
+    if (!txt) continue;
+    const nodes = selectedNodes(row?.selectCategory ?? row?.select_category);
+    for (const n of nodes) {
+      const slug = String(n?.slug || "").trim();
+      if (!slug || map.has(slug)) continue;
+      map.set(slug, txt);
+    }
+  }
+  return map;
+}
+
+function firstCategoryCardButtonText(rawCategoryCard) {
+  const rows = Array.isArray(rawCategoryCard)
+    ? rawCategoryCard
+    : rawCategoryCard
+      ? [rawCategoryCard]
+      : [];
+  for (const row of rows) {
+    const txt = toText(row?.categoryButtonText ?? row?.category_button_text);
+    if (txt) return txt;
+  }
+  return undefined;
+}
+
+function categoriesWithDescendantsOnly(allCategories, selectedSlugs) {
+  if (!selectedSlugs?.size) return allCategories;
+  const byParent = new Map();
+  for (const c of allCategories) {
+    const parentId = Number(c?.parentDatabaseId ?? 0);
+    if (!Number.isFinite(parentId) || parentId <= 0) continue;
+    const list = byParent.get(parentId) ?? [];
+    list.push(c);
+    byParent.set(parentId, list);
+  }
+
+  const selectedBySlug = new Map(
+    allCategories
+      .filter((c) => selectedSlugs.has(String(c?.slug || "").trim()))
+      .map((c) => [Number(c?.databaseId ?? 0), c]),
+  );
+  const keepIds = new Set(
+    Array.from(selectedBySlug.keys()).filter((id) => Number.isFinite(id) && id > 0),
+  );
+
+  const queue = [...keepIds];
+  while (queue.length > 0) {
+    const parentId = queue.shift();
+    const kids = byParent.get(parentId) ?? [];
+    for (const kid of kids) {
+      const kidId = Number(kid?.databaseId ?? 0);
+      if (!Number.isFinite(kidId) || kidId <= 0 || keepIds.has(kidId)) continue;
+      keepIds.add(kidId);
+      queue.push(kidId);
+    }
+  }
+
+  return allCategories.filter((c) => {
+    const id = Number(c?.databaseId ?? 0);
+    if (!keepIds.has(id)) return false;
+    const slug = String(c?.slug || "").trim();
+    return !selectedSlugs.has(slug);
+  });
+}
+
+function acfYesNo(value, defaultValue = true) {
+  if (value === undefined || value === null || String(value).trim() === "") return defaultValue;
+  if (value === true || value === "Yes" || value === "yes" || value === "1" || value === 1) return true;
+  if (value === false || value === "No" || value === "no" || value === "0" || value === 0) return false;
+  return defaultValue;
+}
+
+
+/** @param {{ params: Promise<{ locale: string }> }} props */
+export async function generateMetadata({ params }) {
+  const { locale } = await params;
+  let page = null;
+  try {
+    page = await fetchPageByUri(getClient(), "/");
+  } catch {
+    page = null;
+  }
+  // console.log("test-page----", fetchPageByUri);
+
+
+  const title = toText(page?.acfFields?.heading || page?.title || "Accueil") || "Accueil";
+
+  
+  const description = toText(
+    page?.acfFields?.bannerDescription || page?.excerpt || page?.content || "",
+  ).slice(0, 160);
+
+  return buildPageMetadata({
+    title,
+    description: description || title,
+    path: homePath(locale),
+    imageUrl: page?.acfFields?.bannerImage?.node?.sourceUrl || page?.featuredImage?.node?.sourceUrl,
+    locale,
+  });
+}
+
+/** @param {{ params: Promise<{ locale: string }> }} props */
+export default async function HomePage({ params }) {
+  const { locale } = await params;
+  const client = getClient();
+
+  let page = null;
+  try {
+    page = await fetchPageByUri(client, "/");
+  } catch {
+    page = null;
+  }
+
+  let productNodes = [];
+  try {
+    const res = await fetchProducts(client, { first: 24 });
+    productNodes = res?.nodes ?? [];
+  } catch {
+    productNodes = [];
+  }
+
+  let categoryNodes = [];
+  try {
+    categoryNodes = await fetchProductCategories(client, { all: true });
+  } catch {
+    categoryNodes = [];
+  }
+
+  let pages = [];
+  try {
+    pages = await fetchPages(client);
+  } catch {
+    pages = [];
+  }
+
+  let homeOptions = null;
+  try {
+    
+    homeOptions = await fetchHomeOptions(client);
+    // console.log("homeOptions sssss ", homeOptions);
+
+  } catch {
+    homeOptions = null;
+  }
+
+  const acf = page?.acfFields || null;
+  const homePageNode = pages.find((node) => node?.id === page?.id) || pages.find((node) => node?.uri === "/");
+  const homepageHeroSection = homePageNode?.homepageHeroSection || null;
+  const heroTitle = toText(acf?.heading) || undefined;
+  const introCopy = toText(acf?.bannerDescription) || undefined;
+
+  const section2introtext = toText(homepageHeroSection?.introText || acf?.introText) || undefined;
+  const section2background_image =
+    homepageHeroSection?.weOfferBackgroundImage?.node?.sourceUrl || acf?.weOfferBackgroundImage?.node?.sourceUrl || undefined;
+  const rawKeywords = homepageHeroSection?.keywords || acf?.keywords;
+  const section2keywords = Array.isArray(rawKeywords)
+    ? rawKeywords.map((item) => ({
+        title: toText(item?.title),
+        link: toText(item?.linkText),
+        href: item?.linkUrl || undefined,
+      }))
+    : undefined;
+
+  const heroSectionData = {
+    showHeroSection: homeOptions?.showHeroSection ?? true,
+    heroTitle: toText(homeOptions?.heroTitle) || heroTitle || undefined,
+    heroFirstButtonText: toText(homeOptions?.heroFirstButtonText) || undefined,
+    heroFirstButtonLink: homeOptions?.heroFirstButtonLink || undefined,
+    heroSecondButtonText: toText(homeOptions?.heroSecondButtonText) || undefined,
+    heroSecondButtonLink: homeOptions?.heroSecondButtonLink || undefined,
+    col1TopImage: homeOptions?.col1TopImage?.node || undefined,
+    col1BottomImage: homeOptions?.col1BottomImage?.node || undefined,
+    col2TopImage: homeOptions?.col2TopImage?.node || undefined,
+    col2MiddleImage: homeOptions?.col2MiddleImage?.node || undefined,
+    col3BottomImage: homeOptions?.col3BottomImage?.node || undefined,
+    col2BottomImage: homeOptions?.col2BottomImage?.node || undefined,
+    col4TopImage: homeOptions?.col4TopImage?.node || undefined,
+    col4MiddleImage: homeOptions?.col4MiddleImage?.node || undefined,
+    col4BottomImage: homeOptions?.col4BottomImage?.node || undefined,
+    col5TopImage: homeOptions?.col5TopImage?.node || undefined,
+    col5BottomImage: homeOptions?.col5BottomImage?.node || undefined,
+  };
+
+  const weOfferSectionData = {
+    showWeOfferGems: homeOptions?.showWeOfferGems ?? true,
+    weOfferBackgroundImage: homeOptions?.weOfferBackgroundImage?.node?.sourceUrl || undefined,
+    weOfferText: toText(homeOptions?.weOfferText) || undefined,
+    featureList: Array.isArray(homeOptions?.featureList)
+      ? homeOptions.featureList.map((item) => ({
+          title: toText(item?.featureTitle ?? item?.title),
+          link: toText(item?.featureLinkText ?? item?.linkText),
+          href: item?.featurestLink ?? item?.featureLink ?? item?.linkUrl ?? undefined,
+        }))
+      : undefined,
+  };
+
+  const achivementSectionData = {
+    showAchivementSection: homeOptions?.showAchivementSection ?? true,
+    achivementHeading: toText(homeOptions?.achivementHeading) || undefined,
+    allAchivementLinkText: toText(homeOptions?.allAchivementLinkText) || undefined,
+    allAchivementLink: homeOptions?.allAchivementLink || undefined,
+    achivementCard: Array.isArray(homeOptions?.achivementCard)
+      ? homeOptions.achivementCard.map((item) => ({
+          achivementImage:
+            item?.achivementImage?.node?.sourceUrl ||
+            item?.achivementImage?.sourceUrl ||
+            item?.achivementImage ||
+            undefined,
+          achivementHoverImage:
+            item?.achivementHoverImage?.node?.sourceUrl ||
+            item?.achivementHoverImage?.sourceUrl ||
+            item?.achivementHoverImage ||
+            undefined,
+          achivementTitle: toText(item?.achivementTitle) || undefined,
+          achivementLinkText: toText(item?.achivementLinkText) || undefined,
+          achivementLink: item?.achivementLink || undefined,
+        }))
+      : undefined,
+  };
+
+  
+  let instagramFeeds = [];
+  try {
+    instagramFeeds = await fetchInstagramFeeds(client);
+  } catch {
+    instagramFeeds = [];
+  }
+
+
+  const brandStorySectionData = {
+    showBrandStorySection: homeOptions?.showBrandStorySection ?? true,
+    storyLeftCard: {
+      storyLeftImage:
+        homeOptions?.storyLeftCard?.storyLeftImage?.node?.sourceUrl ||
+        homeOptions?.storyLeftCard?.storyLeftImage?.sourceUrl ||
+        homeOptions?.storyLeftCard?.storyLeftImage ||
+        undefined,
+      storyLeftPrefix: toText(homeOptions?.storyLeftCard?.storyLeftPrefix) || undefined,
+      storyLeftTitle: toText(homeOptions?.storyLeftCard?.storyLeftTitle) || undefined,
+      storyLeftDescription: String(homeOptions?.storyLeftCard?.storyLeftDescription || "").trim() || undefined,
+      storyLeftButtonText: toText(homeOptions?.storyLeftCard?.storyLeftButtonText) || undefined,
+      storyLeftButtonLink: homeOptions?.storyLeftCard?.storyLeftButtonLink || undefined,
+    },
+    storyCenterCard: {
+      storyCenterFirstImage:
+        homeOptions?.storyCenterCard?.storyCenterFirstImage?.node?.sourceUrl ||
+        homeOptions?.storyCenterCard?.storyCenterFirstImage?.sourceUrl ||
+        homeOptions?.storyCenterCard?.storyCenterFirstImage ||
+        undefined,
+      storyCenterSecondImage:
+        homeOptions?.storyCenterCard?.storyCenterSecondImage?.node?.sourceUrl ||
+        homeOptions?.storyCenterCard?.storyCenterSecondImage?.sourceUrl ||
+        homeOptions?.storyCenterCard?.storyCenterSecondImage ||
+        undefined,
+      storyCenterPrefix: toText(homeOptions?.storyCenterCard?.storyCenterPrefix) || undefined,
+      storyCenterTitle: toText(homeOptions?.storyCenterCard?.storyCenterTitle) || undefined,
+      storyCenterDescription: String(homeOptions?.storyCenterCard?.storyCenterDescription || "").trim() || undefined,
+      storyCenterButtonText: toText(homeOptions?.storyCenterCard?.storyCenterButtonText) || undefined,
+      storyCenterButtonLink: homeOptions?.storyCenterCard?.storyCenterButtonLink || undefined,
+    },
+    storyRightCard: {
+      storyRightImage:
+        homeOptions?.storyRightCard?.storyRightImage?.node?.sourceUrl ||
+        homeOptions?.storyRightCard?.storyRightImage?.sourceUrl ||
+        homeOptions?.storyRightCard?.storyRightImage ||
+        undefined,
+      storyRightPrefix: toText(homeOptions?.storyRightCard?.storyRightPrefix) || undefined,
+      storyRightTitle: toText(homeOptions?.storyRightCard?.storyRightTitle) || undefined,
+      storyRightDescription: String(homeOptions?.storyRightCard?.storyRightDescription || "").trim() || undefined,
+      storyRightButtonText: toText(homeOptions?.storyRightCard?.storyRightButtonText) || undefined,
+      storyRightButtonLink: homeOptions?.storyRightCard?.storyRightButtonLink || undefined,
+    },
+  };
+  const comparisonData = {
+    showCompressionSection: homeOptions?.showCompressionSection ?? true,
+    compressionTitle: toText(homeOptions?.compressionTitle) || undefined,
+    bonnotParisTitle: toText(homeOptions?.bonnotParisTitle) || undefined,
+    traditionalJewelersTitle: toText(homeOptions?.traditionalJewelersTitle) || undefined,
+    compressionBackgroundImage:
+      homeOptions?.compressionBackgroundImage?.node?.sourceUrl ||
+      homeOptions?.compressionBackgroundImage?.sourceUrl ||
+      homeOptions?.compressionBackgroundImage ||
+      undefined,
+    rows: Array.isArray(homeOptions?.compressionData)
+      ? homeOptions.compressionData.map((item) => ({
+          title: toText(item?.title),
+          bonnot: toText(item?.bonnotParis),
+          classic: toText(item?.traditionalJewelers),
+        }))
+      : undefined,
+    appointmentButtonText: toText(homeOptions?.appointmentButtonText) || undefined,
+    appointmentButtonLink: homeOptions?.appointmentButtonLink || undefined,
+    exchangeButtonText: toText(homeOptions?.exchangeButtonText) || undefined,
+    exchangeButtonLink: homeOptions?.exchangeButtonLink || undefined,
+  };
+
+  let categoryReviewsSettings = null;
+  try {
+    categoryReviewsSettings = await fetchCategoryReviewsSettings(client);
+  } catch {
+    categoryReviewsSettings = null;
+  }
+
+  const categoryReviewsSectionData = {
+    showCategoryReviewsSection: categoryReviewsSettings?.showCategoryReviewsSection ?? true,
+    selectCategoryExplorer: categoryReviewsSettings?.selectCategoryExplorer ?? undefined,
+    reviewMainTitle: toText(categoryReviewsSettings?.reviewMainTitle) || undefined,
+    reviewMainImage:
+      categoryReviewsSettings?.reviewMainImage?.node?.sourceUrl ||
+      categoryReviewsSettings?.reviewMainImage?.sourceUrl ||
+      categoryReviewsSettings?.reviewMainImage ||
+      undefined,
+    reviews: Array.isArray(categoryReviewsSettings?.reviews)
+      ? categoryReviewsSettings.reviews.map((item) => ({
+          reviewImage:
+            item?.reviewImage?.node?.sourceUrl ||
+            item?.reviewImage?.sourceUrl ||
+            item?.reviewImage ||
+            undefined,
+          reviewTitle: toText(item?.reviewTitle) || undefined,
+          reviewDescription: String(item?.reviewDescription || "").trim() || undefined,
+          reviewDateText: item?.reviewDateText || undefined,
+        }))
+      : undefined,
+  };
+
+  let beforeFooterSettings = null;
+  try {
+    beforeFooterSettings = await fetchBeforeFooterSettings(client);
+  } catch {
+    beforeFooterSettings = null;
+  }
+
+  const beforeFooterSectionData = {
+    showBeforeFooterSection: beforeFooterSettings?.showBeforeFooterSection ?? true,
+    title: toText(beforeFooterSettings?.title) || undefined,
+    description: toText(beforeFooterSettings?.description) || undefined,
+    instagramLink: beforeFooterSettings?.instagramLink || undefined,
+    instagramTitle: toText(beforeFooterSettings?.instagramTitle) || undefined,
+    youtubeLink: beforeFooterSettings?.youtubeLink || undefined,
+    youtubeTitle: toText(beforeFooterSettings?.youtubeTitle) || undefined,
+    linkedinLink: beforeFooterSettings?.linkedinLink || undefined,
+    linkedinTitle: toText(beforeFooterSettings?.linkedinTitle) || undefined,
+  };
+
+  const selectedCategory = firstSelectedCategory(
+    homeOptions?.bonnotParisProductCategory ?? homeOptions?.bonnot_paris_product_category,
+  );
+  const showBonnotParisProductSection = acfYesNo(
+    homeOptions?.showBonnotParisProductSection ?? homeOptions?.show_bonnot_paris_product_section,
+    true,
+  );
+  const showBonnotSecondSection = acfYesNo(
+    homeOptions?.showBonnotSecondSection ?? homeOptions?.show_bonnot_second_section,
+    true,
+  );
+  const showBonnotCategorySection = acfYesNo(
+    homeOptions?.showBonnotCategorySection ?? homeOptions?.show_bonnot_category_section,
+    true,
+  );
+  const bonnotCategoryTitle = String(
+    homeOptions?.bonnotCategoryTitle ??
+      homeOptions?.bonnot_category_title ??
+      "",
+  ).trim() || undefined;
+  const pierresCategoryLinkText = toText(
+    homeOptions?.bonnotCategoryLinkText ?? homeOptions?.bonnot_category_link_text,
+  ) || undefined;
+  const bonnotCategoryButtonTitle = toText(
+    homeOptions?.bonnotCategoryButtonTitle ?? homeOptions?.bonnot_category_button_title,
+  ) || undefined;
+  const secondBonnotCategoryLinkText = toText(
+    homeOptions?.secondBonnotCategoryLinkText ?? homeOptions?.second_bonnot_category_link_text,
+  ) || undefined;
+  const showProductCategorySection = acfYesNo(
+    homeOptions?.showProductCategorySection ?? homeOptions?.show_product_category_section,
+    true,
+  );
+  const gridCategoryButtonText =
+    firstCategoryCardButtonText(homeOptions?.categoryCard ?? homeOptions?.category_card) || undefined;
+  const gridSectionTitle = String(
+    homeOptions?.categorySectionTitle ?? homeOptions?.category_section_title ?? "",
+  ).trim() || undefined;
+  const gridSectionButtonText = toText(
+    homeOptions?.categorySectionButtonText ?? homeOptions?.category_section_button_text,
+  ) || undefined;
+  const gridSectionButtonHref = String(
+    homeOptions?.categorySectionButtonLink ?? homeOptions?.category_section_button_link ?? "",
+  ).trim() || undefined;
+  const selectedSecondCategory = firstSelectedCategory(
+    homeOptions?.selectSecondProductCategory ?? homeOptions?.select_second_product_category,
+  );
+  const selectedBonnotCategories = selectedNodes(
+    homeOptions?.selectBonnotCategory ?? homeOptions?.select_bonnot_category,
+  );
+  const selectedGridCategories = selectedNodesFromCategoryCard(
+    homeOptions?.categoryCard ?? homeOptions?.category_card,
+  );
+  const gridButtonTextBySlug = categoryCardButtonTextBySlug(
+    homeOptions?.categoryCard ?? homeOptions?.category_card,
+  );
+  const selectedBonnotSlugs = new Set(
+    selectedBonnotCategories
+      .map((c) => String(c?.slug || "").trim())
+      .filter(Boolean),
+  );
+  const bonnotCategoryNodes = categoriesWithDescendantsOnly(categoryNodes, selectedBonnotSlugs);
+  const selectedGridSlugs = new Set(
+    selectedGridCategories
+      .map((c) => String(c?.slug || "").trim())
+      .filter(Boolean),
+  );
+
+  let pierresProducts = [];
+  try {
+    if (selectedCategory?.slug) {
+      const categoryWithProducts = await fetchCategoryWithProducts(client, selectedCategory.slug, { first: 60 });
+      pierresProducts = categoryWithProducts?.products?.nodes ?? [];
+    }
+  } catch {
+    pierresProducts = [];
+  }
+
+  let secondCategoryProducts = [];
+  try {
+    if (selectedSecondCategory?.slug) {
+      const categoryWithProducts = await fetchCategoryWithProducts(client, selectedSecondCategory.slug, { first: 60 });
+      secondCategoryProducts = categoryWithProducts?.products?.nodes ?? [];
+    }
+  } catch {
+    secondCategoryProducts = [];
+  }
+
+  const gridBaseCategories = selectedGridSlugs.size
+    ? categoryNodes.filter((c) => selectedGridSlugs.has(String(c?.slug || "").trim()))
+    : (bonnotCategoryNodes.length > 0 ? bonnotCategoryNodes : categoryNodes);
+  const gridCandidates = gridBaseCategories
+    .filter((c) => c?.slug)
+    .slice(0, 3);
+  const gridCategoryNodes = await Promise.all(
+    gridCandidates.map(async (c) => {
+      const slug = String(c?.slug || "").trim();
+      const fallbackNodes = productNodes.filter((p) =>
+        (p?.productCategories?.nodes ?? []).some((pc) => String(pc?.slug || "").trim() === slug),
+      );
+      try {
+        const cat = await fetchCategoryWithProducts(client, String(c.slug), { first: 100 });
+        const nodes = cat?.products?.nodes ?? [];
+        return {
+          ...c,
+          categoryButtonText: gridButtonTextBySlug.get(slug) || undefined,
+          products: {
+            nodes: nodes.length > 0 ? nodes : fallbackNodes,
+          },
+        };
+      } catch {
+        return {
+          ...c,
+          categoryButtonText: gridButtonTextBySlug.get(slug) || undefined,
+          products: { nodes: fallbackNodes },
+        };
+      }
+    }),
+  );
+
+  return (
+    <HomePageFigma
+      locale={locale}
+      products={productNodes}
+      categories={categoryNodes}
+      heroTitle={heroTitle}
+      introCopy={introCopy}
+      section2introtext={section2introtext}
+      section2background_image={section2background_image}
+      section2keywords={section2keywords}
+      heroSectionData={heroSectionData}
+      weOfferSectionData={weOfferSectionData}
+      achivementSectionData={achivementSectionData}
+      brandStorySectionData={brandStorySectionData}
+      comparisonData={comparisonData}
+      showBonnotParisProductSection={showBonnotParisProductSection}
+      showBonnotSecondSection={showBonnotSecondSection}
+      showBonnotCategorySection={showBonnotCategorySection}
+      showProductCategorySection={showProductCategorySection}
+      bonnotCategoryTitle={bonnotCategoryTitle}
+      categoryReviewsSectionData={categoryReviewsSectionData}
+      beforeFooterSectionData={beforeFooterSectionData}
+      pierresCategoryLinkText={pierresCategoryLinkText}
+      instagramFeeds={instagramFeeds}
+      secondBonnotCategoryLinkText={secondBonnotCategoryLinkText}
+      bonnotCategoryButtonTitle={bonnotCategoryButtonTitle}
+      gridCategoryButtonText={gridCategoryButtonText}
+      gridSectionTitle={gridSectionTitle}
+      gridSectionButtonText={gridSectionButtonText}
+      gridSectionButtonHref={gridSectionButtonHref}
+      bonnotCategoryNodes={bonnotCategoryNodes}
+      gridCategoryNodes={gridCategoryNodes}
+      pierresProducts={pierresProducts}
+      pierresCategoryName={toText(selectedCategory?.name) || undefined}
+      pierresCategorySlug={toText(selectedCategory?.slug) || undefined}
+      secondCategoryProducts={secondCategoryProducts}
+      secondCategoryName={toText(selectedSecondCategory?.name) || undefined}
+      secondCategorySlug={toText(selectedSecondCategory?.slug) || undefined}
+    />
+  );
+}
