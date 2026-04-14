@@ -8,6 +8,14 @@ import { productPath } from "@/modules/product/routes/paths";
 import { parsePrice } from "@/modules/product/utils/parse-price";
 import { ProductCard } from "@/modules/product/components/ProductCard";
 import { HomeProductStrip } from "@/modules/home/components/HomeProductStrip";
+import { ProductTypeImage } from "@/modules/product/components/ProductTypeImage";
+import { ProductInfoSection } from "@/modules/product/components/ProductInfoSection";
+import { RingConfiguratorSection } from "@/modules/product/components/RingConfiguratorSection";
+import {
+  normalizeProductToStone,
+  SelectStoneModal,
+} from "@/modules/product/components/SelectStoneModal";
+
 const INK = "#001122";
 const INK_50 = "rgba(0,17,34,0.5)";
 const INK_75 = "rgba(0,17,34,0.75)";
@@ -15,14 +23,6 @@ const INK_20 = "rgba(0,17,34,0.2)";
 const ACCENT = "#FF6633";
 const SAND = "#F5EEE5";
 const GALLERY_BG = "#F5EEE5";
-
-const RING_STYLES = [
-  { key: "neutral",  label: "Bague\nNeutrale" },
-  { key: "minimal",  label: "Bague\nMinimale" },
-  { key: "vintage",  label: "Bague\nVintage"  },
-  { key: "floral",   label: "Bague\nFlorale"  },
-  { key: "deco",     label: "Bague\nArt Déco" },
-];
 
 const DEFAULT_ACCORDION_ITEMS = [
   {
@@ -81,6 +81,14 @@ function firstParagraphPlain(html) {
   if (!html) return "";
   const m = String(html).match(/<p[^>]*>([\s\S]*?)<\/p>/i);
   return m ? stripHtml(m[1]) : stripHtml(html);
+}
+
+function truthyAcfShow(v) {
+  return v === true || v === "yes" || v === "Yes" || v === 1 || v === "1";
+}
+
+function falsyAcfShow(v) {
+  return v === false || v === "no" || v === "No" || v === 0 || v === "0";
 }
 
 // function normalizeGalleryImages(product) {
@@ -280,13 +288,26 @@ export function ProductDetail({
   product,
   locale,
   relatedProducts = [],
+  popupProducts = [],
   accordionItems = [],
   founderSection = null,
   icaSection = null,
+  storiesSectionData = [],
+  secondStoriesSectionData = [],
   onAddToCart,
+  onAddRelatedToCart,
+  addToCartSubmitting = false,
+  getAddToCartDisabled,
 }) {
   const resolvedAccordionItems = accordionItems.length > 0 ? accordionItems : DEFAULT_ACCORDION_ITEMS;
   const founder = founderSection ?? DEFAULT_FOUNDER;
+
+  const productType = product?.productAcfFields?.productType ?? null;
+  
+  const safeStoriesSectionData = Array.isArray(storiesSectionData) ? storiesSectionData : [];
+  const safeSecondStoriesSectionData = Array.isArray(secondStoriesSectionData) ? secondStoriesSectionData : [];
+  const productTypeData = productType === "Stones" ? safeStoriesSectionData[0] : safeSecondStoriesSectionData[0];
+
 
   const ica = {
     image: icaSection?.image || DEFAULT_ICA_SECTION.image,
@@ -299,12 +320,14 @@ export function ProductDetail({
 
   const { format } = useCurrency();
   const [active, setActive]   = useState(0);
-  const [ringSel, setRingSel] = useState(2);
+  const [ringSel, setRingSel] = useState(0);
   const [isSliding, setIsSliding] = useState(false);
    const thumbStripRef = useRef(null);
   const [thumbCanScroll, setThumbCanScroll] = useState(false);
   const [thumbAtStart, setThumbAtStart] = useState(true);
   const [thumbAtEnd, setThumbAtEnd] = useState(false);
+  const [stonePickerOpen, setStonePickerOpen] = useState(false);
+  const [showStickyCart, setShowStickyCart] = useState(false);
   const slideTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
 
   /* ─── images ─── */
@@ -317,10 +340,52 @@ export function ProductDetail({
   }, [product]);
 
   const displayRelatedProducts = useMemo(() => {
-    const fromAcf = product?.productAcfFields?.selectRelatedProduct?.nodes;
-    if (Array.isArray(fromAcf) && fromAcf.length > 0) return fromAcf;
-    return relatedProducts;
-  }, [product, relatedProducts]);
+    return Array.isArray(relatedProducts) ? relatedProducts : [];
+  }, [relatedProducts]);
+
+  const ringRelatedProducts = useMemo(() => {
+    const acf = product?.productAcfFields ?? product?.acfFields ?? null;
+    const raw =
+      acf?.select_related_product ??
+      acf?.select_related_products ??
+      acf?.selectRelatedProduct ??
+      acf?.selectRelatedProducts;
+    const list = Array.isArray(raw?.nodes)
+      ? raw.nodes
+      : Array.isArray(raw?.edges)
+        ? raw.edges.map((edge) => edge?.node)
+        : Array.isArray(raw)
+          ? raw
+          : [];
+
+    return list.filter(Boolean).slice(0, 5);
+  }, [product]);
+
+  const showRingConfiguratorSection = useMemo(() => {
+    const acf = product?.productAcfFields ?? product?.acfFields ?? null;
+    const showValue =
+      acf?.show_realated_products_section ??
+      acf?.showRealatedProductsSection ??
+      acf?.show_related_products_section ??
+      acf?.showRelatedProductsSection;
+    if (showValue === undefined || showValue === null || String(showValue).trim() === "") return true;
+    if (falsyAcfShow(showValue)) return false;
+    return truthyAcfShow(showValue);
+  }, [product]);
+
+  const stonePickerStones = useMemo(() => {
+    const map = new Map();
+    const push = (p) => {
+      const s = normalizeProductToStone(p);
+      if (s && !map.has(s.id)) map.set(s.id, s);
+    };
+    push(product);
+    for (const p of popupProducts) push(p);
+    if (map.size <= 1) {
+      for (const p of displayRelatedProducts) push(p);
+    }
+    return Array.from(map.values());
+  }, [product, popupProducts, displayRelatedProducts]);
 
   const activeMedia = media[active] ?? media[0] ?? null;
   const activeImg =
@@ -341,7 +406,12 @@ export function ProductDetail({
   const subtitle   = primaryCat?.name ?? "Pierre précieuse";
   const specBullets = parseListItems(product.shortDescription ?? "");
   const bodyText    = firstParagraphPlain(product.description ?? "") || stripHtml(product.shortDescription ?? "");
-  const pairing     = displayRelatedProducts[0] ?? null;
+  const pairing = ringRelatedProducts[ringSel] ?? ringRelatedProducts[0] ?? null;
+  const mainAddToCartDisabled = getAddToCartDisabled
+    ? getAddToCartDisabled(product)
+    : false;
+  const pairingAddToCartDisabled =
+    getAddToCartDisabled && pairing ? getAddToCartDisabled(pairing) : false;
   const rating = Math.max(0, Math.min(5, Number(product?.averageRating ?? 4)));
 
   /* ─── handlers ─── */
@@ -357,6 +427,10 @@ export function ProductDetail({
   };
   const goPrev = () => setSlide((active - 1 + images.length) % images.length);
   const goNext = () => setSlide((active + 1) % images.length);
+
+  const productDescriptionLink = Array.isArray(product?.productAcfFields?.productDescriptionLink)
+  ? product.productAcfFields.productDescriptionLink
+  : [];
 
   useEffect(() => {
     if (active >= images.length) setActive(0);
@@ -392,11 +466,35 @@ export function ProductDetail({
     };
   }, []);
 
-  /* ─── lifestyle image for jewelry section ─── */
-  const lifestyleImg = displayRelatedProducts[1]?.featuredImage?.node?.sourceUrl ?? secondaryImg?.sourceUrl ?? null;
+  useEffect(() => {
+    const onScroll = () => {
+      setShowStickyCart(window.scrollY > 300);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!ringRelatedProducts.length) return;
+    if (ringSel >= ringRelatedProducts.length) {
+      setRingSel(0);
+    }
+  }, [ringSel, ringRelatedProducts]);
+
+  /* ─── lifestyle image for jewelry section (selected related product second image) ─── */
+  const lifestyleImg =
+    pairing?.galleryImages?.nodes?.[1]?.sourceUrl ??
+    pairing?.galleryImages?.nodes?.[1]?.mediaItemUrl ??
+    pairing?.galleryImages?.nodes?.[0]?.sourceUrl ??
+    pairing?.galleryImages?.nodes?.[0]?.mediaItemUrl ??
+    pairing?.featuredImage?.node?.sourceUrl ??
+    secondaryImg?.sourceUrl ??
+    null;
 
   return (
-    <div className="w-full bg-[#FFFAF5]">
+    
+    <div className="w-full bg-[#FFFAF5]" suppressHydrationWarning>
 
             <div className="mx-auto w-full max-w-[1440px]">
         <div className="flex flex-col gap-[15px] pb-[30px] pt-[50px] px-4 min-[1440px]:px-[60px] max-[768px]:pt-[30px] max-[768px]:pb-[15px]">
@@ -451,7 +549,8 @@ export function ProductDetail({
       <div className="mx-auto flex w-full max-w-[1440px] flex-col min-[1025px]:flex-row">
 
         {/* ── LEFT: Gallery (720 px) ── */}
-        <div className="w-full min-[1025px]:w-[50%] shrink-0">
+        <div className="w-full min-[1025px]:w-[50%] shrink-0 min-[1025px]:sticky min-[1025px]:top-[100px] h-fit">
+
 
           {/* Main image — 720 × 900 */}
           <div
@@ -597,415 +696,77 @@ export function ProductDetail({
 
         </div>
 
-        {/* ── RIGHT: Product info (720 px) ── */}
-        <div className="w-full min-[1025px]:w-[50%] flex flex-col gap-0 px-4 min-[1025px]:px-[30px] min-[1201px]:px-[60px] max-[1025px]:pt-[30px]">
-
-          {/* ── Block 1: core info ── */}
-          <div className="flex flex-col gap-[22px] pb-[30px] max-[768px]:pb-[15px]">
-
-            {/* Category + rating */}
-            <div className="flex items-center justify-between hidden">
-              <span className="text-sm font-semibold" style={{ color: INK }}>{subtitle}</span>
-              <div className="flex items-center gap-2">
-                <svg width="11" height="11" viewBox="0 0 12 12" fill={INK} aria-hidden>
-                  <path d="M6 0l1.76 3.57L12 4.3 9.18 7.13 9.88 12 6 9.9 2.12 12l.7-4.87L0 4.3l4.24-.73L6 0z"/>
-                </svg>
-                <span className="text-sm font-semibold" style={{ color: INK }}>5 / 5</span>
-              </div>
-            </div>
-
-            {/* Description + portrait image side-by-side */}
-            <div className="flex items-start gap-[60px] max-[1201px]:gap-[30px] max-[1201px]:flex-col max-[1025px]:flex-row max-[480px]:flex-col">
-              <div className="flex min-w-0 flex-1 flex-col gap-[15px]">
-
-                {/* Title */}
-                <h1 className="font-serif text-[28px] font-normal leading-[1.25] mb-[45px] max-[1201px]:mb-[20px]" style={{ color: INK }}>
-                  {product.name}
-                </h1>
-
-                {/* Price */}
-                <div className="flex items-baseline justify-between gap-2 pb-[15px] border-b" style={{ borderColor: INK_20 }}>
-                  <p className="text-[14px] font-semibold leading-none" style={{ color: ACCENT }}>
-                    {priceLabel}
-                  </p>
-                  <p className="text-[11px] font-normal" style={{ color: ACCENT }}>
-                    Payable en 3X sans frais
-                  </p>
-                </div>
-
-                {bodyText && (
-                  <p className="text-[14px] leading-[1.6]" style={{ color: INK_75, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}>
-                    {bodyText}
-                  </p>
-                )}
-                {specBullets.length > 0 && (
-                  <ul className="flex flex-col gap-[10px]">
-                    {specBullets.map((t) => (
-                      <li key={t} className="flex items-center gap-[10px] text-[13px] leading-[1.5]" style={{ color: INK }}>
-                        <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ backgroundColor: INK }} aria-hidden />
-                        {t}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex flex-col gap-[15px] border-t pt-[15px]" style={{ borderColor: INK_20 }}>
-                  {[
-                    { href: "#showroom",  label: "Essayer au Showroom" },
-                    { href: "#rdv",       label: "Prendre rendez-vous à distance" },
-                    { href: "#whatsapp",  label: "Échanger sur WhatsApp" },
-                  ].map(({ href, label }) => (
-                    <a key={href} href={href}
-                      className="text-[14px] leading-[1.5] font-semibold underline-offset-2 text-[var(--ink-50)] hover:text-[var(--ink)] hover:underline transition-colors duration-300"
-                      style={{ "--ink-50": INK_50, "--ink": INK, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}>
-                      {label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              {/* Secondary portrait image — desktop only */}
-              <div className="group shrink-0 relative overflow-hidden h-[320px] w-[180px] max-[480px]:h-[200px] max-[480px]:w-[120px] max-[480px]:mx-auto"
-                style={{ borderColor: INK_20 }}>
-                {(images[1]?.sourceUrl ?? activeImg?.sourceUrl) ? (
-                  <img src={(images[1] ?? activeImg).sourceUrl} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                ) : (
-                  <div className="flex h-full items-center justify-center bg-[#f0ebe3] text-xs" style={{ color: INK_50 }}>
-                    Vidéo
-                  </div>
-                )}
-                <div
-                  className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent to-[#00112240] transition-opacity duration-300"
-                  aria-hidden="true"
-                />
-                <p className="absolute bottom-0 left-0 right-0 z-[2] p-2.5 text-left text-xs font-normal leading-snug text-white transition-transform duration-300 group-hover:translate-y-[-2px] min-[1024px]:text-sm min-[1024px]:leading-[1.428]">
-                  L’enchantement d’un saphir teal
-                </p>
-              </div>
-            </div>
-
-            {/* Category arrow link */}
-            
-
-            <div className="flex flex-col gap-[15px] pt-[50px]">
-              <div className="flex flex-row items-center gap-[11px]">
-
-              {thumbCanScroll && (
-                  <div className="flex justify-end gap-1">
-                    <button
-                      type="button"
-                      aria-label="Vignettes précédentes"
-                      onClick={() => thumbStripRef.current?.scrollBy({ left: -140, behavior: "smooth" })}
-                      disabled={thumbAtStart}
-                      className="flex h-3 w-3 items-center justify-center text-[#001122] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-25"
-                    >
-                      <Chevronright dir="left" stroke={1.2} />
-                    </button>
-                  </div>
-                )}
-                
-                <div ref={thumbStripRef} className="strip-hide-scrollbar flex flex-row gap-[10px] overflow-x-auto overflow-y-hidden">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <button
-                      key={`thumb-${i}`}
-                      type="button"
-                      aria-label={`Image ${i + 1}`}
-                      aria-current={i === 0 ? "true" : undefined}
-                      className="h-[60px] w-[60px] shrink-0 overflow-hidden border border-[#00112233] bg-white transition-colors hover:border-[#001122] cursor-pointer"
-                    >
-                      <img src="/figma/product/product-gold-ring.png" alt="" className="h-full w-full object-cover" loading="lazy" />
-                    </button>
-                  ))}
-                </div>
-
-                {thumbCanScroll && (
-                  <div className="flex justify-end gap-1">
-                    <button
-                      type="button"
-                      aria-label="Vignettes suivantes"
-                      onClick={() => thumbStripRef.current?.scrollBy({ left: 140, behavior: "smooth" })}
-                      disabled={thumbAtEnd}
-                      className="flex h-3 w-3 items-center justify-center text-[#001122] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-25"
-                    >
-                      <Chevronright dir="right" stroke={1.2} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-
-              <div className="flex justify-end">
-                <ArrowLink
-                  href={primaryCat ? categoryPath(locale, primaryCat.slug) : productsPath(locale)}
-                  style={{ color: INK_50 }}>
-                  {primaryCat
-                    ? `${primaryCat.name}${primaryCat.count != null ? ` (${primaryCat.count})` : ""}`
-                    : "Toutes les pierres"}
-                </ArrowLink>
-              </div>
-            </div>
-
-
-            {/* CTA buttons */}
-            <div className="flex flex-col gap-[8px] sm:flex-row pt-[15px]">
-                <button
-                  type="button"
-                  className="group flex h-10 flex-1 items-center justify-center gap-2 
-                  bg-[#001122] px-4 text-sm font-semibold text-white leading-[40px]
-                  transition-all duration-300 cursor-pointer
-                  hover:bg-transparent hover:text-[#001122] hover:border hover:border-[#001122]"
-                  style={{ fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}
-                >
-                  <svg
-                    className="transition-transform duration-300 group-hover:rotate-12"
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <path d="M19.03 3.56C17.36 2.17 15.29 1.26 13 1.05V3.06C14.73 3.25 16.31 3.94 17.61 4.98L19.03 3.56Z" fill="currentColor"/>
-                    <path d="M11 3.06V1.05C8.71 1.25 6.64 2.17 4.97 3.56L6.39 4.98C7.69 3.94 9.27 3.25 11 3.06Z" fill="currentColor"/>
-                    <path d="M4.98 6.39L3.56 4.97C2.17 6.64 1.26 8.71 1.05 11H3.06C3.25 9.27 3.94 7.69 4.98 6.39Z" fill="currentColor"/>
-                    <path d="M20.94 11H22.95C22.74 8.71 21.83 6.64 20.44 4.97L19.02 6.39C20.06 7.69 20.75 9.27 20.94 11Z" fill="currentColor"/>
-                    <path d="M7 12L10.44 13.56L12 17L13.56 13.56L17 12L13.56 10.44L12 7L10.44 10.44L7 12Z" fill="currentColor"/>
-                    <path d="M12 21C8.89 21 6.15 19.41 4.54 17H7V15H1V21H3V18.3C4.99 21.14 8.27 23 12 23C16.87 23 21 19.83 22.44 15.44L20.48 14.99C19.25 18.48 15.92 21 12 21Z" fill="currentColor"/>
-                  </svg>
-
-                  Créer avec cette pierre
-                </button>
-                <button
-                  type="button"
-                  onClick={onAddToCart}
-                  className="group flex h-10 flex-1 items-center justify-center gap-2 
-                  border px-4 text-sm font-semibold leading-[40px]
-                  transition-all duration-300 cursor-pointer
-                  hover:bg-[#001122] hover:text-white hover:border-[#001122]"
-                  style={{
-                    borderColor: INK_20,
-                    fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif",
-                  }}
-                >
-                  Ajouter au panier
-                  <svg
-                    className="transition-transform duration-300 group-hover:translate-x-1"
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="13"
-                    height="13"
-                    viewBox="0 0 13 13"
-                    fill="none"
-                  >
-                    <path
-                      d="M0 6.35352H12M12 6.35352L6 0.353516M12 6.35352L6 12.3535"
-                      stroke="currentColor"
-                      strokeMiterlimit="10"
-                    />
-                  </svg>
-                </button>
-
-              </div>
-
-          </div>
-
-          {/* ── Block 2: ICA + Accordion + Founder ── */}
-          <div className="flex flex-col gap-[24px] pt-[30px] max-[768px]:pt-[15px]" >
-
-            {/* ICA */}
-            <div className="flex flex-row items-center gap-[60px] max-[1201px]:gap-[30px] max-[480px]:flex-col max-[480px]:text-center max-[480px]:gap-0"
-              style={{ backgroundColor: SAND }}>
-              <div className="flex flex-1 flex-col gap-[15px] p-[15px]">
-                <p className="text-sm font-semibold" style={{ color: INK }}>
-                  {ica.title || DEFAULT_ICA_SECTION.title}
-                </p>
-                <p className="text-[13px] leading-[1.6]" style={{ color: INK_75, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}>
-                  {stripHtml(ica.description || DEFAULT_ICA_SECTION.description)}
-                </p>
-              </div>
-              <div className="mx-auto h-[160px] w-[160px] shrink-0 overflow-hidden bg-[#001122] lg:mx-0 lg:h-[180px] lg:w-[180px]">
-                <img src={ica.image || DEFAULT_ICA_SECTION.image} alt={ica.title || "ICA"} className="h-full w-full object-cover"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }} />
-              </div>
-            </div>
-
-           {/* Accordion */}
-           <div className="border-b" style={{ borderColor: INK_20 }}>
-              {resolvedAccordionItems.map((item, i) => (
-                <details key={item.title} className="group border-t" style={{ borderColor: INK_20 }} open={i === 0}>
-                  <summary className="flex cursor-pointer list-none items-center gap-3 py-[14px] pr-1 [&::-webkit-details-marker]:hidden">
-                    <span className="flex-1 text-sm font-semibold" style={{ color: INK }}>{item.title}</span>
-                    {item.linkStyle && (
-                      <span className="flex gap-[3px]" aria-hidden>
-                        {[0,1,2,3,4].map((s) => (
-                          <svg key={s} width="9" height="9" viewBox="0 0 12 12" fill={INK} opacity={0.35}>
-                            <path d="M6 0l1.76 3.57L12 4.3 9.18 7.13 9.88 12 6 9.9 2.12 12l.7-4.87L0 4.3l4.24-.73L6 0z"/>
-                          </svg>
-                        ))}
-                      </span>
-                    )}
-                    <svg className="h-[5px] w-3 shrink-0 transition-transform group-open:rotate-180" viewBox="0 0 12 6" fill="none" aria-hidden>
-                      <path d="M1 1l5 4 5-4" stroke={INK} strokeWidth="1.2"/>
-                    </svg>
-                  </summary>
-                  <div 
-                    className="pb-[14px] text-[13px] leading-[1.6]" 
-                    style={{ color: INK_75, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}
-                    dangerouslySetInnerHTML={{ __html: item.body }}
-                  />
-                </details>
-              ))}
-            </div>
-
-            {/* Founder */}
-            <div className="flex flex-row gap-5 items-center lg:gap-[30px] max-[480px]:flex-col max-[480px]:text-center max-[480px]:gap-[15px]">
-              <div className="h-[220px] w-[165px] shrink-0 overflow-hidden bg-[#e8dfd4]">
-                <img 
-                  src={founder.image || DEFAULT_FOUNDER.image} 
-                  alt={founder.imageAlt || DEFAULT_FOUNDER.imageAlt} 
-                  className="h-full w-full object-cover"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }} 
-                />
-              </div>
-              <div className="flex flex-1 flex-col justify-center gap-[18px]">
-                <div className="flex flex-col gap-[10px]">
-                  <p className="text-sm font-semibold" style={{ color: INK }}>
-                    {founder.title || DEFAULT_FOUNDER.title}
-                  </p>
-                  <div 
-                    className="text-[14px] leading-[1.6]" 
-                    style={{ color: INK_75, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}
-                    dangerouslySetInnerHTML={{ __html: founder.description || DEFAULT_FOUNDER.description }}
-                  />
-                </div>
-                <ArrowLink href={founder.linkUrl || productsPath(locale)} style={{ color: INK }}>
-                  {founder.linkText || DEFAULT_FOUNDER.linkText}
-                </ArrowLink>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ProductInfoSection
+          subtitle={subtitle}
+          product={product}
+          priceLabel={priceLabel}
+          bodyText={bodyText}
+          specBullets={specBullets}
+          productDescriptionLink={productDescriptionLink}
+          INK={INK}
+          INK_20={INK_20}
+          INK_50={INK_50}
+          INK_75={INK_75}
+          ACCENT={ACCENT}
+          images={images}
+          activeImg={activeImg}
+          thumbCanScroll={thumbCanScroll}
+          thumbAtStart={thumbAtStart}
+          thumbAtEnd={thumbAtEnd}
+          thumbStripRef={thumbStripRef}
+          Chevronright={Chevronright}
+          stonePickerStones={stonePickerStones}
+          setStonePickerOpen={setStonePickerOpen}
+          primaryCat={primaryCat}
+          onAddToCart={onAddToCart}
+          addToCartDisabled={mainAddToCartDisabled}
+          addToCartSubmitting={addToCartSubmitting}
+          ica={ica}
+          SAND={SAND}
+          DEFAULT_ICA_SECTION={DEFAULT_ICA_SECTION}
+          resolvedAccordionItems={resolvedAccordionItems}
+          founder={founder}
+          DEFAULT_FOUNDER={DEFAULT_FOUNDER}
+          ArrowLink={ArrowLink}
+          locale={locale}
+          productsPath={productsPath}
+          stripHtml={stripHtml}
+        />
       </div>  
 
       {/* ═══════════════════════════════════════════════
           SECTION 2 — Jewelry / Ring configurator
       ═══════════════════════════════════════════════ */}
 
-      <section className="mx-auto w-full max-w-[1440px] px-4 min-[1440px]:px-[60px] pb-0 pt-16 min-[1440px]:pt-[120px]">
-
-        {/* Header row */}
-        <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-[8px]">
-            <h2 className="font-serif text-[21px] font-normal leading-[1.2] uppercase" style={{ color: INK }}>
-              Créez votre bague Bonnot Paris sur mesure
-            </h2>
-            <p className="text-[14px] leading-[1.5]" style={{ color: INK_75, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}>
-              Personnalisez une de nos créations ou créez la vôtre
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-[14px] lg:gap-5">
-            {RING_STYLES.map((r, i) => (
-              <button key={r.key} type="button" onClick={() => setRingSel(i)}
-                className="group flex flex-col items-center gap-[15px] cursor-pointer" style={{ width: 80 }}>
-                <span className={`flex h-[90px] w-[90px] max-[1025px]:h-[80px] max-[1025px]:w-[80px] items-center justify-center overflow-hidden rounded-full transition-shadow ${ringSel === i ? "ring-[1.5px] ring-[#001122]" : "group-hover:ring-[1.5px] group-hover:ring-[#00112266]"}`}
-                  style={{ backgroundColor: SAND }}>
-                  {pairing?.featuredImage?.node?.sourceUrl && (
-                    <img src={pairing.featuredImage.node.sourceUrl} alt="" className="h-full w-full object-cover opacity-75" />
-                  )}
-                </span>
-                <span className="whitespace-pre-line text-center text-[14px] leading-[1.4]"
-                  style={{ color: ringSel === i ? INK : INK_75, fontWeight: ringSel === i ? 400 : 400, fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}>
-                  {r.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Body: lifestyle LEFT + product card RIGHT */}
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:gap-[30px]">
-
-          {/* Product card — RIGHT (fixed 380 px) */}
-          <div className="flex w-full flex-col overflow-hidden lg:w-[420px] lg:shrink-0">
-
-            {/* Square product image */}
-            <div className="group aspect-square w-full overflow-hidden border-b border-b-[#00112233]" style={{ backgroundColor: SAND }}>
-              {pairing?.featuredImage?.node?.sourceUrl ? (
-                <img src={pairing.featuredImage.node.sourceUrl} alt={pairing.name ?? ""} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-              ) : activeImg?.sourceUrl ? (
-                <img src={activeImg.sourceUrl} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm" style={{ color: INK_50 }}>Aucune image</div>
-              )}
-            </div>
-
-            {/* Info + buttons */}
-            <div className="flex flex-1 flex-col gap-[16px] pt-5 lg:pt-[22px]">
-              {pairing ? (
-                <>
-                  <a href={pairing ? productPath(locale, pairing.slug) : productsPath(locale)} className="text-[#001122] hover:text-[#FF6633]">
-                    <h3 className="font-serif text-[21px] font-normal leading-[1.2]" >
-                      {pairing.name}
-                    </h3>
-                    </a>
-                  <p className="text-sm font-semibold" style={{ color: ACCENT }}>
-                    {parsePrice(pairing.price ?? pairing.regularPrice ?? "0") > 0
-                      ? format(parsePrice(pairing.price ?? pairing.regularPrice ?? "0"), localeFmt)
-                      : pairing.price ?? "Prix sur demande"}
-                  </p>
-                </>
-              ) : (
-                <p className="font-serif text-[18px] font-normal leading-[1.3]" style={{ color: INK }}>
-                  Découvrez nos créations sur mesure
-                </p>
-              )}
-              <div className="mt-auto flex flex-row gap-[10px] max-[480px]:flex-col">
-                <Link href={pairing ? productPath(locale, pairing.slug) : productsPath(locale)}
-                  className="group flex h-10 w-full items-center justify-center gap-[15px]
-                    bg-[#001122] text-sm font-semibold text-white
-                    border border-[#001122]
-                    transition-all duration-300
-                    hover:bg-transparent hover:text-[#001122]"
-                    style={{ fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }} >
-                  Configurer la vôtre
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 13 13" fill="none" className="transition-transform duration-300 group-hover:translate-x-1">
-                    <path d="M0 6.35352H12M12 6.35352L6 0.353516M12 6.35352L6 12.3535" stroke="currentColor" strokeMiterlimit="10"/>
-                  </svg>
-                </Link>
-                <button type="button"
-                  className="group flex h-10 w-full items-center justify-center gap-[15px] 
-                    border border-[#00112233] 
-                    text-sm font-semibold 
-                    text-[#001122BF] 
-                    transition-all duration-300 cursor-pointer
-                    hover:bg-[#001122] hover:text-white hover:border-[#001122]"
-                    style={{ fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}>
-                  Ajouter au panier
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 13 13" fill="none" className="transition-transform duration-300 group-hover:translate-x-1">
-                    <path d="M0 6.35352H12M12 6.35352L6 0.353516M12 6.35352L6 12.3535" stroke="currentColor" strokeMiterlimit="10"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Lifestyle image — LEFT (flex-1) */}
-          <div className="relative min-h-[620px] flex-1 overflow-hidden max-[1024px]:min-h-[480px] max-[767px]:min-h-[320px]"
-            style={{ backgroundColor: SAND }}>
-            {lifestyleImg ? (
-              <img src={lifestyleImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-sm" style={{ color: INK_50 }}>
-                Image bague
-              </div>
-            )}
-          </div>
-          
-        </div>
-      </section>
+      {showRingConfiguratorSection && ringRelatedProducts.length > 0 ? (
+        <RingConfiguratorSection
+          ringSel={ringSel}
+          setRingSel={setRingSel}
+          pairing={pairing}
+          activeImg={activeImg}
+          product={product}
+          locale={locale}
+          localeFmt={localeFmt}
+          format={format}
+          lifestyleImg={lifestyleImg}
+          ringRelatedProducts={ringRelatedProducts}
+          onAddToCart={async () => {
+            if (onAddRelatedToCart && pairing) {
+              await onAddRelatedToCart(pairing);
+              return;
+            }
+            await onAddToCart?.();
+          }}
+          addToCartDisabled={pairingAddToCartDisabled}
+          addToCartSubmitting={addToCartSubmitting}
+        />
+      ) : null}
 
       {/* ═══════════════════════════════════════════════
           SECTION 3 — Related products
       ═══════════════════════════════════════════════ */}
 
-
+ 
 
 
       {displayRelatedProducts.length > 0 && (
@@ -1020,6 +781,55 @@ export function ProductDetail({
         />
       </section>
       )}
+
+<SelectStoneModal
+        isOpen={stonePickerOpen}
+        onClose={() => setStonePickerOpen(false)}
+        locale={locale}
+        stones={stonePickerStones}
+      />
+
+      {showStickyCart ? (
+        <div className="fixed bottom-0 right-0 z-[65] w-full max-w-[50%] max-[1025px]:max-w-full border-t border-l max-[1025px]:border-l-0 border-[#00112233] bg-[#FFFAF5] px-[60px] py-[30px] max-[1025px]:px-[30px] max-[1025px]:py-[15px] min-[1025px]:left-auto min-[1025px]:translate-x-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-[15px]">
+              <div className="h-[45px] w-[45px] shrink-0 overflow-hidden bg-[#e8dfd4]">
+                {activeImg?.sourceUrl ? (
+                  <img src={activeImg.sourceUrl} alt="" className="h-full w-full object-cover" />
+                ) : null}
+              </div>
+              <p className="line-clamp-2 font-serif text-[21px] font-normal leading-[1.2] max-[768px]:text-[18px]" style={{ color: INK }}>
+                {product.name}
+              </p>
+            </div>
+            <p className="shrink-0 text-[20px] font-semibold max-[768px]:text-[18px]" style={{ color: ACCENT }}>
+              {priceLabel}
+            </p>
+          </div>
+          <div className="mt-[15px] flex flex-row gap-[10px] max-[480px]:flex-col">
+            <button
+              type="button"
+              onClick={() => setStonePickerOpen(true)}
+              className="group flex h-10 w-full items-center justify-center gap-[15px] border border-[#001122] bg-[#001122] text-sm font-semibold text-white transition-all duration-300 hover:bg-transparent hover:text-[#001122] cursor-pointer"
+              style={{ fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}
+            >
+              Créer avec cette pierre
+            </button>
+            <button
+              type="button"
+              onClick={() => onAddToCart?.()}
+              disabled={mainAddToCartDisabled}
+              className="group flex h-10 w-full items-center justify-center gap-[15px] border border-[#00112233] text-sm font-semibold text-[#001122BF] transition-all duration-300 hover:border-[#001122] hover:bg-[#001122] hover:text-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[#00112233] disabled:hover:bg-transparent disabled:hover:text-[#001122BF]" 
+              style={{ fontFamily: "var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif" }}
+            >
+              {addToCartSubmitting ? "Ajout…" : "Ajouter au panier"}
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 13 13" fill="none" className="transition-transform duration-300 group-hover:translate-x-1">
+                <path d="M0 6.35352H12M12 6.35352L6 0.353516M12 6.35352L6 12.3535" stroke="currentColor" strokeMiterlimit="10"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
 
     </div>
   );

@@ -4,6 +4,8 @@ import { getPublicEnv } from "@/config/env";
 import { buildPageMetadata } from "@/lib/seo/build-metadata";
 import { productJsonLd } from "@/lib/seo/json-ld";
 import { GET_CATEGORY_PRODUCTS_BY_WHERE } from "@/modules/category/api/queries";
+import { fetchHomeOptions } from "@/modules/cms/services/cms-page-service";
+
 import {
   fetchProductBySlug,
   fetchProducts,
@@ -13,6 +15,16 @@ import { ProductPageShell } from "@/modules/product/components/ProductPageShell"
 import { productPath } from "@/constants/routes";
 import { parsePrice } from "@/modules/product/utils/parse-price";
 
+function pickByPrefixes(source, prefixes) {
+  if (!source || typeof source !== "object") return {};
+  const out = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
 /** @param {{ params: Promise<{ locale: string; slug: string }> }} props */
 export async function generateMetadata({ params }) {
   const { locale, slug } = await params;
@@ -79,21 +91,27 @@ export default async function ProductSlugPage({ params }) {
   /** @type {object[]} */
   let relatedProducts = [];
   /** @type {object[]} */
+  let popupProducts = [];
+  /** @type {object[]} */
   let accordionItems = [];
   /** @type {object | null} */
   let founderSection = null;
    /** @type {object | null} */
  let icaSection = null;
 
+ let storiesSectionData = [];
+  let secondStoriesSectionData = [];
+
   try {
     const catSlug = product.productCategories?.nodes?.[0]?.slug;
     if (catSlug) {
       const { data } = await client.query({
         query: GET_CATEGORY_PRODUCTS_BY_WHERE,
-        variables: { slug: catSlug, first: 16 },
+        variables: { slug: catSlug, first: 100 },
         fetchPolicy: "no-cache",
       });
       const nodes = data?.products?.nodes ?? [];
+      popupProducts = nodes;
       relatedProducts = nodes.filter((p) => p.slug !== product.slug).slice(0, 10);
     }
     if (!relatedProducts.length) {
@@ -102,8 +120,27 @@ export default async function ProductSlugPage({ params }) {
         .filter((p) => p.slug !== product.slug)
         .slice(0, 10);
     }
+    if (!popupProducts.length) {
+      popupProducts = [product, ...relatedProducts].filter(
+        (p, i, arr) => arr.findIndex((x) => String(x?.slug || "") === String(p?.slug || "")) === i,
+      );
+    }
   } catch {
     relatedProducts = [];
+    popupProducts = [product];
+  }
+
+  try {
+    const homeOptions = await fetchHomeOptions(client);
+    storiesSectionData = homeOptions
+      ? [pickByPrefixes(homeOptions, ["showStoriesSection", "stories"])]
+      : [];
+    secondStoriesSectionData = homeOptions
+      ? [pickByPrefixes(homeOptions, ["showSecondStoriesSection", "secondStories"])]
+      : [];
+  } catch {
+    storiesSectionData = [];
+    secondStoriesSectionData = [];
   }
 
   try {
@@ -143,9 +180,12 @@ export default async function ProductSlugPage({ params }) {
         product={product}
         locale={locale}
         relatedProducts={relatedProducts}
+        popupProducts={popupProducts}
         accordionItems={accordionItems}
         founderSection={founderSection}
         icaSection={icaSection} // add line
+        storiesSectionData={storiesSectionData}
+    secondStoriesSectionData={secondStoriesSectionData}
       />
     </>
   );

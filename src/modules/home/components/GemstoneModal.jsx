@@ -1,14 +1,21 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { categoryPath } from "@/constants/routes";
+
+const MODAL_ENTER_MS = 760;
+const MODAL_EXIT_MS = 320;
+const MODAL_ENTER_DELAY_MS = 90;
 
 /**
  * @param {{ isOpen: boolean; onClose: () => void; initialIndex?: number; slides?: Array<{ id?: string; label?: string; image?: string; title?: string; description?: string; count?: number; slug?: string }>; locale?: string }} props
  */
 export default function GemstoneModal({ isOpen, onClose, initialIndex = 0, slides: slidesProp, locale = "fr" }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isMounted, setIsMounted] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(false);
   const slides = useMemo(() => (Array.isArray(slidesProp) ? slidesProp : []), [slidesProp]);
+  const closeTimerRef = useRef(null);
   const activeSlide = slides[activeIndex];
 
   const descriptionText = String(activeSlide?.description ?? "").trim();
@@ -35,7 +42,39 @@ export default function GemstoneModal({ isOpen, onClose, initialIndex = 0, slide
     setActiveIndex(safeIndex);
   }, [isOpen, initialIndex, slides.length]);
 
-  if (!isOpen || slides.length === 0) return null;
+  useEffect(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    if (isOpen) {
+      setIsMounted(true);
+      const id = window.setTimeout(() => {
+        window.requestAnimationFrame(() => setIsVisible(true));
+      }, MODAL_ENTER_DELAY_MS);
+      return () => window.clearTimeout(id);
+    }
+
+    setIsVisible(false);
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsMounted(false);
+    }, MODAL_EXIT_MS);
+
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  if (!isMounted || slides.length === 0) return null;
 
   return (
     <div
@@ -47,10 +86,32 @@ export default function GemstoneModal({ isOpen, onClose, initialIndex = 0, slide
         className="absolute kg-category-popup inset-0  flex items-center justify-center"
 
       >
-        <div className="absolute inset-0 bg-[#001122]/50 backdrop-blur-[10px]" onClick={onClose}></div>
+        <div
+          className={`absolute inset-0 bg-[#001122]/50 backdrop-blur-[10px] transition-opacity ${
+            isVisible ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            transitionDuration: `${isVisible ? MODAL_ENTER_MS : MODAL_EXIT_MS}ms`,
+            transitionTimingFunction: isVisible
+              ? "cubic-bezier(0.16, 1, 0.3, 1)"
+              : "cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+          onClick={onClose}
+        />
 
         {/* Modal */}
-        <div className="relative z-10 w-[90%] max-w-md bg-white p-5 pt-10" onClick={(e) => e.stopPropagation()}>
+        <div
+          className={`relative z-10 w-[90%] max-w-md bg-white p-5 pt-10 transform-gpu will-change-transform transition-[opacity,transform] ${
+            isVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-6 scale-[0.95]"
+          }`}
+          style={{
+            transitionDuration: `${isVisible ? MODAL_ENTER_MS : MODAL_EXIT_MS}ms`,
+            transitionTimingFunction: isVisible
+              ? "cubic-bezier(0.16, 1, 0.3, 1)"
+              : "cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
             {/* Close Button */}
             <button
             type="button"

@@ -1,4 +1,6 @@
-import { defaultLocale } from "@/config/i18n";
+import {
+    defaultLocale
+} from "@/config/i18n";
 
 /**
  * Route path builders (locale-prefixed paths only, without domain).
@@ -11,52 +13,60 @@ import { defaultLocale } from "@/config/i18n";
  * @param {string} path Path starting with "/"
  */
 export function localizedPath(locale, path) {
-  const clean = path.startsWith("/") ? path : `/${path}`;
-  if (locale === defaultLocale) return clean;
-  if (clean === "/") return `/${locale}`;
-  return `/${locale}${clean}`;
+    const clean = path.startsWith("/") ? path : `/${path}`;
+    if (locale === defaultLocale) return clean;
+    if (clean === "/") return `/${locale}`;
+    return `/${locale}${clean}`;
 }
 
 export function homePath(locale) {
-  return localizedPath(locale, "/");
+    return localizedPath(locale, "/");
 }
 
 export function productsPath(locale) {
-  return localizedPath(locale, "/products");
+    return localizedPath(locale, "/products");
+}
+
+export function categoriesIndexPath(locale) {
+    return localizedPath(locale, "/category");
+}
+
+export function categoriesSubCategoryPath(locale, slug) {
+    return localizedPath(locale, `/subcategory/${encodeURIComponent(slug)}`);
 }
 
 export function categoryPath(locale, slug) {
-  return localizedPath(locale, `/category/${encodeURIComponent(slug)}`);
+    return localizedPath(locale, `/category/${encodeURIComponent(slug)}`);
 }
 
 export function productPath(locale, slug) {
-  return localizedPath(locale, `/products/${encodeURIComponent(slug)}`);
+    return localizedPath(locale, `/products/${encodeURIComponent(slug)}`);
 }
 
 export function cartPath(locale) {
-  return localizedPath(locale, "/cart");
+    return localizedPath(locale, "/cart");
 }
 
 export function checkoutPath(locale) {
-  return localizedPath(locale, "/checkout");
+    return localizedPath(locale, "/checkout");
 }
 
 export function loginPath(locale) {
-  return localizedPath(locale, "/login");
+    return localizedPath(locale, "/login");
 }
 
 export function registerPath(locale) {
-  return localizedPath(locale, "/register");
+    return localizedPath(locale, "/register");
 }
 
 export function accountPath(locale) {
-  return localizedPath(locale, "/account");
+    return localizedPath(locale, "/account");
 }
 
 export function blogPath(locale) {
-  return localizedPath(locale, "/blog");
+    return localizedPath(locale, "/blog");
 }
 
 export function blogPostPath(locale, slug) {
-  return localizedPath(locale, `/blog/${encodeURIComponent(slug)}`);
+    return localizedPath(locale, `/blog/${encodeURIComponent(slug)}`);
 }

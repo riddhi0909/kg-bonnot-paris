@@ -32,16 +32,17 @@ export function mapCategoryFaqForSection(category) {
 
 /**
  * @param {import('@apollo/client').ApolloClient} client
- * @param {{ first?: number; after?: string | null; all?: boolean }} vars
+ * @param {{ first?: number; after?: string | null; all?: boolean; hideEmpty?: boolean }} vars
  * @param {boolean} [vars.all] If true, paginate until every category is loaded (homepage rail).
  */
 export async function fetchProductCategories(client, vars = {}) {
   const pageSize = Math.min(100, Math.max(1, vars.first ?? 50));
+  const hideEmpty = vars.hideEmpty ?? true;
 
   if (!vars.all) {
     const { data, errors } = await client.query({
       query: GET_PRODUCT_CATEGORIES,
-      variables: { first: pageSize, after: vars.after ?? null },
+      variables: { first: pageSize, after: vars.after ?? null, hideEmpty },
       fetchPolicy: "no-cache",
     });
     if (errors?.length) throw new Error(errors.map((e) => e.message).join(", "));
@@ -56,7 +57,7 @@ export async function fetchProductCategories(client, vars = {}) {
     guard += 1;
     const { data, errors } = await client.query({
       query: GET_PRODUCT_CATEGORIES,
-      variables: { first: pageSize, after },
+      variables: { first: pageSize, after, hideEmpty },
       fetchPolicy: "no-cache",
     });
     if (errors?.length) throw new Error(errors.map((e) => e.message).join(", "));

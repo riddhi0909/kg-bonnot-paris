@@ -90,7 +90,7 @@ export function BonnotHeaderBar({ locale, menuItems, announcement: _announcement
               ) : null}
             </button>
 
-            {contact.external ? (
+          {contact.external ? (
               <a
                 href={contact.href}
                 className="inline-flex h-10 w-[240px] max-w-full shrink-0 items-center justify-center gap-[15px] border border-[rgba(0,17,34,0.2)] bg-[#001122] px-[15px] text-sm font-semibold leading-[1.428] text-white transition hover:bg-[#0a2038]"
@@ -103,29 +103,19 @@ export function BonnotHeaderBar({ locale, menuItems, announcement: _announcement
             ) : (
               <Link
                 href={contact.href}
-                className="
-                  hidden lg:inline-flex h-10 w-[240px] max-w-full shrink-0
-                  items-center justify-center gap-[15px]
-                  border border-[#00112233]
-                  px-[15px] text-sm font-semibold leading-[1.428]
-                  
-                  text-white bg-[#001122]
-                  hover:text-[#001122] hover:bg-transparent
-                  
-                  transition-all duration-300
-                "
+                className="inline-flex h-10 w-[40px] lg:w-[240px] max-w-full shrink-0 items-center justify-center gap-[0px] lg:gap-[15px] border border-[#00112233] px-1.5 lg:px-[15px] text-sm font-semibold leading-[1.428] text-white bg-[#001122] hover:text-[#001122] hover:bg-transparent transition-all duration-300"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <path d="M18.03 2.51C16.36 1.12 14.29 0.21 12 0V2.01C13.73 2.2 15.31 2.89 16.61 3.93L18.03 2.51Z" fill="currentColor"/>
-                <path d="M10.0007 2.01V0C7.7107 0.2 5.6407 1.12 3.9707 2.51L5.3907 3.93C6.6907 2.89 8.2707 2.2 10.0007 2.01Z" fill="currentColor"/>
-                <path d="M3.98078 5.34L2.56078 3.92C1.17078 5.59 0.260781 7.66 0.0507812 9.95H2.06078C2.25078 8.22 2.94078 6.64 3.98078 5.34Z" fill="currentColor"/>
-                <path d="M19.9395 9.95H21.9495C21.7395 7.66 20.8295 5.59 19.4395 3.92L18.0195 5.34C19.0595 6.64 19.7495 8.22 19.9395 9.95Z" fill="currentColor"/>
-                <path d="M6 10.95L9.44 12.51L11 15.95L12.56 12.51L16 10.95L12.56 9.39L11 5.95L9.44 9.39L6 10.95Z" fill="currentColor"/>
-                <path d="M11 19.95C7.89 19.95 5.15 18.36 3.54 15.95H6V13.95H0V19.95H2V17.25C3.99 20.09 7.27 21.95 11 21.95C15.87 21.95 20 18.78 21.44 14.39L19.48 13.94C18.25 17.43 14.92 19.95 11 19.95Z" fill="currentColor"/>
-                </svg>
-                Créer avec Bonnot AI
-                
-              </Link>
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <path d="M18.03 2.51C16.36 1.12 14.29 0.21 12 0V2.01C13.73 2.2 15.31 2.89 16.61 3.93L18.03 2.51Z" fill="currentColor"/>
+              <path d="M10.0007 2.01V0C7.7107 0.2 5.6407 1.12 3.9707 2.51L5.3907 3.93C6.6907 2.89 8.2707 2.2 10.0007 2.01Z" fill="currentColor"/>
+              <path d="M3.98078 5.34L2.56078 3.92C1.17078 5.59 0.260781 7.66 0.0507812 9.95H2.06078C2.25078 8.22 2.94078 6.64 3.98078 5.34Z" fill="currentColor"/>
+              <path d="M19.9395 9.95H21.9495C21.7395 7.66 20.8295 5.59 19.4395 3.92L18.0195 5.34C19.0595 6.64 19.7495 8.22 19.9395 9.95Z" fill="currentColor"/>
+              <path d="M6 10.95L9.44 12.51L11 15.95L12.56 12.51L16 10.95L12.56 9.39L11 5.95L9.44 9.39L6 10.95Z" fill="currentColor"/>
+              <path d="M11 19.95C7.89 19.95 5.15 18.36 3.54 15.95H6V13.95H0V19.95H2V17.25C3.99 20.09 7.27 21.95 11 21.95C15.87 21.95 20 18.78 21.44 14.39L19.48 13.94C18.25 17.43 14.92 19.95 11 19.95Z" fill="currentColor"/>
+              </svg>
+              <span className=" hidden lg:inline-flex ">Créer avec Bonnot AI</span>
+            </Link>
+
 
             )}
           </div>

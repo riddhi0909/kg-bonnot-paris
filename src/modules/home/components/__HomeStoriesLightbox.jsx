@@ -41,58 +41,35 @@ function plainText(value) {
 }
 
 function mediaUrl(value) {
-  return (
-    value?.node?.mediaItemUrl ||
-    value?.mediaItemUrl ||
-    value?.node?.sourceUrl ||
-    value?.sourceUrl ||
-    value ||
-    ""
-  );
-}
-
-function normalizeMimeType(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase();
+  return value?.node?.mediaItemUrl || value?.mediaItemUrl || value?.node?.sourceUrl || value?.sourceUrl || value || "";
 }
 
 function buildStoryItems(raw) {
   if (!raw || typeof raw !== "object") return [];
-  return STORY_SLOT_ORDER.map(([column, position], index) => {
-    const base = `storiesCol${column}${position}`;
-    const src = mediaUrl(raw[`${base}Image`]);
-    const videoSrc = mediaUrl(raw[`${base}Video`]);
-    const videoMimeType = normalizeMimeType(raw[`${base}VideoMimeType`]);
-    const caption = plainText(raw[`${base}ImageTitle`]);
-    if (!src && !videoSrc && !caption) return null;
-    const hasVideoMime = videoMimeType.startsWith("video/");
-    const hasImageMime = videoMimeType.startsWith("image/");
-    const displaySrc = hasImageMime ? videoSrc || src : src || videoSrc;
-    return {
-      id: `story-${index + 1}`,
-      src,
-      videoSrc,
-      videoMimeType,
-      displaySrc,
-      shouldRenderVideo: hasVideoMime && Boolean(videoSrc),
-      caption,
-    };
-  }).filter(Boolean);
+  return STORY_SLOT_ORDER
+    .map(([column, position], index) => {
+      const base = `storiesCol${column}${position}`;
+      const src = mediaUrl(raw[`${base}Image`]);
+      const videoSrc = mediaUrl(raw[`${base}Video`]);
+      const caption = plainText(raw[`${base}ImageTitle`]);
+      if (!src && !videoSrc && !caption) return null;
+      return {
+        id: `story-${index + 1}`,
+        src,
+        videoSrc,
+        caption,
+      };
+    })
+    .filter(Boolean);
 }
 
 export function HomeStoriesLightbox({ items }) {
   const storyItems = useMemo(() => buildStoryItems(items), [items]);
   const profileAvatar = mediaUrl(items?.storiesProfileImage) || PROFILE_AVATAR;
-  const profileTitle =
-    plainText(items?.storiesProfileTitle) || "Francois Deprez";
-  const profileDescription =
-    plainText(items?.storiesProfileDescription) || HEADLINE;
-  const profileButtonTitle =
-    plainText(items?.storiesProfileButtonTitle) || FOLLOW_LABEL;
-  const profileButtonLink = String(
-    items?.storiesProfileButtonLink || "",
-  ).trim();
+  const profileTitle = plainText(items?.storiesProfileTitle) || "Francois Deprez";
+  const profileDescription = plainText(items?.storiesProfileDescription) || HEADLINE;
+  const profileButtonTitle = plainText(items?.storiesProfileButtonTitle) || FOLLOW_LABEL;
+  const profileButtonLink = String(items?.storiesProfileButtonLink || "").trim();
   const [activeIndex, setActiveIndex] = useState(-1);
   const [progressPct, setProgressPct] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -102,12 +79,9 @@ export function HomeStoriesLightbox({ items }) {
   const startedAtRef = useRef(0);
   const progressBaseRef = useRef(0);
   const videoRef = useRef(null);
-  const wasPausedRef = useRef(false);
 
   const isOpen =
-    storyItems.length > 0 &&
-    activeIndex >= 0 &&
-    activeIndex < storyItems.length;
+    storyItems.length > 0 && activeIndex >= 0 && activeIndex < storyItems.length;
 
   const stopLoop = () => {
     if (rafRef.current) {
@@ -133,9 +107,7 @@ export function HomeStoriesLightbox({ items }) {
 
   const goPrev = () => {
     if (!storyItems.length) return;
-    setActiveIndex(
-      (prev) => (prev - 1 + storyItems.length) % storyItems.length,
-    );
+    setActiveIndex((prev) => (prev - 1 + storyItems.length) % storyItems.length);
     setProgressPct(0);
     progressBaseRef.current = 0;
     startedAtRef.current = performance.now();
@@ -173,30 +145,19 @@ export function HomeStoriesLightbox({ items }) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isPaused) return;
+    progressBaseRef.current = progressPct;
+    startedAtRef.current = performance.now();
+  }, [isPaused, progressPct]);
+
   const activeItem = isOpen ? storyItems[activeIndex] : null;
-  const hasVideo = Boolean(activeItem?.shouldRenderVideo) && !videoError;
+  const hasVideo = Boolean(activeItem?.videoSrc) && !videoError;
 
   useEffect(() => {
-    if (!isOpen || hasVideo) {
-      wasPausedRef.current = isPaused;
-      return;
-    }
-    if (isPaused && !wasPausedRef.current) {
-      // Freeze progress when pause is first triggered.
-      progressBaseRef.current = progressPct;
-      startedAtRef.current = performance.now();
-    }
-    if (!isPaused && wasPausedRef.current) {
-      // Resume from the same point without counting paused time.
-      startedAtRef.current = performance.now();
-    }
-    wasPausedRef.current = isPaused;
-  }, [hasVideo, isOpen, isPaused, progressPct]);
-
-  useEffect(() => {
-    if (!activeItem?.shouldRenderVideo || !activeItem?.videoSrc) return;
+    if (!activeItem?.videoSrc) return;
     setVideoError(false);
-  }, [activeItem?.id, activeItem?.shouldRenderVideo, activeItem?.videoSrc]);
+  }, [activeItem?.id, activeItem?.videoSrc]);
 
   useEffect(() => {
     if (!isOpen || !hasVideo || !videoRef.current) return;
@@ -230,10 +191,7 @@ export function HomeStoriesLightbox({ items }) {
 
     const step = (now) => {
       const elapsed = now - startedAtRef.current;
-      const pct = Math.min(
-        100,
-        progressBaseRef.current + (elapsed / STORY_DURATION_MS) * 100,
-      );
+      const pct = Math.min(100, progressBaseRef.current + (elapsed / STORY_DURATION_MS) * 100);
 
       if (pct >= 100) {
         goNext();
@@ -261,9 +219,7 @@ export function HomeStoriesLightbox({ items }) {
     storyItems.find((s) => /gem dealer/i.test(String(s.caption || ""))) ||
     storyItems[0] ||
     null;
-  const mobileMasonryItems = storyItems
-    .filter((s) => s.id !== mobileHero?.id)
-    .slice(0, 9);
+  const mobileMasonryItems = storyItems.filter((s) => s.id !== mobileHero?.id).slice(0, 9);
 
   const renderCard = (item, index, sizeClass, { variant = "default" } = {}) => (
     <button
@@ -273,12 +229,7 @@ export function HomeStoriesLightbox({ items }) {
       onClick={() => openAtIndex(index)}
       aria-label={`Ouvrir la story: ${item.caption}`}
     >
-      <img
-        src={item.src}
-        alt=""
-        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-        loading="lazy"
-      />
+      <img src={item.src} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 z-[1]
           h-[45%]
@@ -299,32 +250,16 @@ export function HomeStoriesLightbox({ items }) {
       >
         ▶
       </span>
-      <p
-        className="absolute bottom-0 left-0 right-0 z-[2]
+      <p className="absolute bottom-0 left-0 right-0 z-[2]
           p-2.5 text-left text-xs font-normal leading-snug text-white
           transition-transform duration-300
           group-hover:translate-y-[-2px]
 
-          min-[1024px]:text-sm min-[1024px]:leading-[1.428]"
-      >
+          min-[1024px]:text-sm min-[1024px]:leading-[1.428]">
         {item.caption}
       </p>
     </button>
   );
-
-  const togglePause = () => {
-    setIsPaused((prev) => {
-      const nextPaused = !prev;
-      if (videoRef.current) {
-        if (nextPaused) {
-          videoRef.current.pause();
-        } else {
-          videoRef.current.play().catch(() => {});
-        }
-      }
-      return nextPaused;
-    });
-  };
 
   return (
     <>
@@ -352,7 +287,7 @@ export function HomeStoriesLightbox({ items }) {
               className="mt-3 text-xs font-semibold uppercase leading-[1.35] tracking-[0.06em]"
               style={{ color: NAME_ACCENT }}
             >
-              {profileTitle}
+             {profileTitle}
             </p>
             <p className="mt-4 max-w-[340px] font-serif text-[26px] font-normal leading-[1.12] text-[#061A2F]">
               {profileDescription}
@@ -394,9 +329,7 @@ export function HomeStoriesLightbox({ items }) {
                   const item = mobileMasonryItems[itemIdx];
                   if (!item) return null;
                   const tall = colIdx === 1;
-                  const hClass = tall
-                    ? MOBILE_MASONRY_TALL[rowIdx]
-                    : MOBILE_MASONRY_SHORT[rowIdx];
+                  const hClass = tall ? MOBILE_MASONRY_TALL[rowIdx] : MOBILE_MASONRY_SHORT[rowIdx];
                   return (
                     <div key={item.id} className={`${hClass} w-full shrink-0`}>
                       {renderCard(
@@ -417,21 +350,13 @@ export function HomeStoriesLightbox({ items }) {
         <div className="mx-auto hidden w-full max-w-[1440px] grid-cols-[minmax(0,280fr)_minmax(0,180fr)_minmax(0,280fr)_minmax(0,180fr)_minmax(0,280fr)] gap-5 min-[1024px]:grid min-[1200px]:gap-5">
           <div className="flex flex-col justify-between gap-5 py-[30px]">
             {col1.map((item) =>
-              renderCard(
-                item,
-                storyItems.findIndex((x) => x.id === item.id),
-                "aspect-[9/16] w-full",
-              ),
+              renderCard(item, storyItems.findIndex((x) => x.id === item.id), "aspect-[9/16] w-full"),
             )}
           </div>
 
           <div className="flex flex-col justify-between gap-5">
             {col2.map((item) =>
-              renderCard(
-                item,
-                storyItems.findIndex((x) => x.id === item.id),
-                "aspect-[9/16] w-full",
-              ),
+              renderCard(item, storyItems.findIndex((x) => x.id === item.id), "aspect-[9/16] w-full"),
             )}
           </div>
 
@@ -473,17 +398,17 @@ export function HomeStoriesLightbox({ items }) {
                   →
                 </span>
               </button> */}
-
+              
               <Link
                 href={items?.storiesProfileButtonLink}
                 className="inline-flex h-10 w-full items-center shadow-sm cursor-pointer transition-all duration-300 hover:bg-[#001122] hover:text-white hover:border-[#001122] min-[1200px]:min-w-[290px] justify-center gap-3 rounded border bg-white px-6 text-sm font-semibold leading-[1.428] text-[#001122]"
                 style={{ borderColor: INK_20 }}
-              >
-                {items?.storiesProfileButtonTitle}
-                <span aria-hidden className="text-base">
-                  →
-                </span>
-              </Link>
+                >
+                  {items?.storiesProfileButtonTitle}
+                  <span aria-hidden className="text-base">
+                    →</span>
+                </Link>
+
             </div>
             {centerBottom
               ? renderCard(
@@ -497,21 +422,13 @@ export function HomeStoriesLightbox({ items }) {
 
           <div className="flex flex-col justify-between gap-5">
             {col4.map((item) =>
-              renderCard(
-                item,
-                storyItems.findIndex((x) => x.id === item.id),
-                "aspect-[9/16] w-full",
-              ),
+              renderCard(item, storyItems.findIndex((x) => x.id === item.id), "aspect-[9/16] w-full"),
             )}
           </div>
 
           <div className="flex flex-col justify-between gap-5 py-[30px]">
             {col5.map((item) =>
-              renderCard(
-                item,
-                storyItems.findIndex((x) => x.id === item.id),
-                "aspect-[9/16] w-full",
-              ),
+              renderCard(item, storyItems.findIndex((x) => x.id === item.id), "aspect-[9/16] w-full"),
             )}
           </div>
         </div>
@@ -528,13 +445,13 @@ export function HomeStoriesLightbox({ items }) {
 
           <div className="relative flex items-center justify-center w-[min(75vw,340px)] min-[1440px]:w-[320px] px-4 mx-auto h-full">
             <div className="relative h-[70vh] w-[min(75vw,340px)] overflow-hidden min-[1440px]:h-[720px] min-[1440px]:w-[320px]">
-              {activeItem.videoSrc && activeItem.videoSrc.includes("mp4") ? (
+              {hasVideo ? (
                 <video
                   key={activeItem.id}
                   ref={videoRef}
                   className="h-full w-full object-cover"
                   src={activeItem.videoSrc}
-                  poster={activeItem.displaySrc || activeItem.src}
+                  poster={activeItem.src}
                   autoPlay
                   muted={isMuted}
                   playsInline
@@ -543,38 +460,20 @@ export function HomeStoriesLightbox({ items }) {
                   onTimeUpdate={(event) => {
                     const { currentTime, duration } = event.currentTarget;
                     if (!duration || Number.isNaN(duration)) return;
-                    setProgressPct(
-                      Math.min(100, (currentTime / duration) * 100),
-                    );
+                    setProgressPct(Math.min(100, (currentTime / duration) * 100));
                   }}
                   onEnded={goNext}
                 />
               ) : (
-                <img
-                  src={activeItem.displaySrc || activeItem.src}
-                  alt={activeItem.caption}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
+                <img src={activeItem.src} alt={activeItem.caption} className="h-full w-full object-cover" loading="lazy" />
               )}
 
               <div className="absolute left-3 right-3 top-3 z-20 flex gap-1.5">
                 {storyItems.map((item, index) => {
-                  const barPct =
-                    index < activeIndex
-                      ? 100
-                      : index === activeIndex
-                        ? progressPct
-                        : 0;
+                  const barPct = index < activeIndex ? 100 : index === activeIndex ? progressPct : 0;
                   return (
-                    <span
-                      key={item.id}
-                      className="relative h-0.5 flex-1 overflow-hidden bg-white/35"
-                    >
-                      <span
-                        className="absolute inset-y-0 left-0 bg-white"
-                        style={{ width: `${barPct}%` }}
-                      />
+                    <span key={item.id} className="relative h-0.5 flex-1 overflow-hidden bg-white/35">
+                      <span className="absolute inset-y-0 left-0 bg-white" style={{ width: `${barPct}%` }} />
                     </span>
                   );
                 })}
@@ -592,7 +491,16 @@ export function HomeStoriesLightbox({ items }) {
                 <button
                   type="button"
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-[#001122]/70 text-white cursor-pointer"
-                  onClick={togglePause}
+                  onClick={() => {
+                    setIsPaused((prev) => !prev);
+                    if (videoRef.current) {
+                      if (isPaused) {
+                        videoRef.current.play().catch(() => {});
+                      } else {
+                        videoRef.current.pause();
+                      }
+                    }
+                  }}
                   aria-label={isPaused ? "Reprendre" : "Pause"}
                 >
                   {isPaused ? "▶" : "II"}
@@ -611,6 +519,7 @@ export function HomeStoriesLightbox({ items }) {
                   {isMuted ? "🔇" : "🔊"}
                 </button>
               </div>
+
             </div>
 
             <button
@@ -619,20 +528,10 @@ export function HomeStoriesLightbox({ items }) {
               onClick={goPrev}
               aria-label="Story precedente"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="13"
-                height="13"
-                viewBox="0 0 13 13"
-                fill="none"
-              >
-                <path
-                  d="M12.7072 6.35351L0.707154 6.35352M0.707154 6.35352L6.70715 12.3535M0.707154 6.35352L6.70715 0.353515"
-                  stroke="#001122"
-                  strokeMiterlimit="10"
-                />
-              </svg>
-            </button>
+             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M12.7072 6.35351L0.707154 6.35352M0.707154 6.35352L6.70715 12.3535M0.707154 6.35352L6.70715 0.353515" stroke="#001122" strokeMiterlimit="10"/>
+            </svg>
+              </button>
 
             <button
               type="button"
@@ -640,20 +539,9 @@ export function HomeStoriesLightbox({ items }) {
               onClick={goNext}
               aria-label="Story suivante"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="13"
-                height="13"
-                viewBox="0 0 13 13"
-                fill="none"
-              >
-                <path
-                  d="M0 6.35352H12M12 6.35352L6 0.353516M12 6.35352L6 12.3535"
-                  stroke="#001122"
-                  strokeMiterlimit="10"
-                />
-              </svg>{" "}
-            </button>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <path d="M0 6.35352H12M12 6.35352L6 0.353516M12 6.35352L6 12.3535" stroke="#001122" strokeMiterlimit="10"/>
+          </svg>            </button>
           </div>
         </div>
       ) : null}

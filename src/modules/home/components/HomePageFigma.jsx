@@ -308,6 +308,8 @@ export function HomePageFigma({
   secondCategoryProducts = [],
   secondCategoryName,
   secondCategorySlug,
+  storiesSectionData, // add line 
+  secondStoriesSectionData
 }) {
 
   const showWeOffer = weOfferSectionData?.showWeOfferGems !== false && weOfferSectionData?.showWeOfferGems !== 'No';
@@ -327,6 +329,11 @@ export function HomePageFigma({
   const achivementCards = Array.isArray(achivementCard)
     ? achivementCard.filter((card) => card?.achivementImage || card?.achivementHoverImage || card?.achivementTitle)
     : [];
+
+    const showStoriesSection = storiesSectionData?.showStoriesSection !== false && storiesSectionData?.showStoriesSection !== 'No';
+    const showSecondStoriesSection = secondStoriesSectionData?.showSecondStoriesSection !== false && secondStoriesSectionData?.showSecondStoriesSection !== 'No';
+
+    
 
 
     const pierresList = Array.isArray(pierresProducts) ? pierresProducts : [];
@@ -564,10 +571,13 @@ export function HomePageFigma({
         </section>
       ) : null}
 
+      
       {/* Stories popup grid 2 */}
+      {showStoriesSection && (
       <section className={`mx-auto w-full max-w-[1440px] py-16 min-[1440px]:py-[60px] px-[15px]`}>
-        <HomeStoriesLightbox items={STORY_GRID_ITEMS} />
-      </section>
+          <HomeStoriesLightbox items={storiesSectionData} />
+        </section>
+      )}
 
       {/* Gem — Saphirs */}
       {showBonnotSecondSection && secondList.length > 0 ? (
@@ -583,9 +593,11 @@ export function HomePageFigma({
       ) : null}
 
    {/* Stories popup grid 2 */}
-   <section className={`kg-home-stories-grid mx-auto w-full max-w-[1440px] py-16 min-[1440px]:py-[60px] px-[15px]`}>
-        <HomeStoriesLightbox items={STORY_GRID_ITEMS_2} />
-      </section>
+   {showSecondStoriesSection && (
+      <section className={`mx-auto w-full max-w-[1440px] py-16 min-[1440px]:py-[60px] px-[15px]`}>
+          <HomeStoriesLightbox items={secondStoriesSectionData} />
+        </section>
+      )}
 
       {showProductCategorySection ? (
         <section

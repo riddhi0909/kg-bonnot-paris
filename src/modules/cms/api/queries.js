@@ -179,7 +179,6 @@ export const GET_PAGES = gql`
     }
   }
 `;
-
 export const GET_HOME_OPTIONS = gql`
   query GetHomeOptions {
     homeSettings {
@@ -394,6 +393,337 @@ export const GET_HOME_OPTIONS = gql`
             }
           }
         }
+        showStoriesSection
+        storiesProfileTitle
+        storiesProfileImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        storiesProfileDescription
+        storiesProfileButtonTitle
+        storiesProfileButtonLink
+        storiesCol1TopImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        storiesCol1TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol1TopImageTitle
+        storiesCol1BottomImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        storiesCol1BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol1BottomImageTitle
+        storiesCol2TopImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        storiesCol2TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol2TopImageTitle
+        storiesCol2CenterImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        storiesCol2CenterVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol2CenterImageTitle
+        storiesCol2BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol2BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol2BottomImageTitle
+        storiesCol3BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol3BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol3BottomImageTitle
+        storiesCol4TopImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol4TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol4TopImageTitle
+        storiesCol4CenterImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol4CenterVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol4CenterImageTitle
+        storiesCol4BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol4BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol4BottomImageTitle
+        storiesCol5TopImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol5TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol5TopImageTitle
+        storiesCol5BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        storiesCol5BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        storiesCol5BottomImageTitle
+
+        
+        showSecondStoriesSection
+        secondStoriesProfileImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        secondStoriesProfileDescription
+        secondStoriesProfileButtonTitle
+        secondStoriesProfileButtonLink
+        secondStoriesCol1TopImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        secondStoriesCol1TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol1TopImageTitle
+        secondStoriesCol1BottomImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        secondStoriesCol1BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol1BottomImageTitle
+        secondStoriesCol2TopImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        secondStoriesCol2TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol2TopImageTitle
+        secondStoriesCol2CenterImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        secondStoriesCol2CenterVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol2CenterImageTitle
+        secondStoriesCol2BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol2BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol2BottomImageTitle
+        secondStoriesCol3BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol3BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol3BottomImageTitle
+        secondStoriesCol4TopImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol4TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol4TopImageTitle
+        secondStoriesCol4CenterImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol4CenterVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol4CenterImageTitle
+        secondStoriesCol4BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol4BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol4BottomImageTitle
+        secondStoriesCol5TopImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol5TopVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol5TopImageTitle
+        secondStoriesCol5BottomImage {
+          node {
+            altText
+            sourceUrl
+          }
+        }
+        secondStoriesCol5BottomVideo {
+          node {
+            mediaItemUrl
+            mediaType
+            mimeType
+          }
+        }
+        secondStoriesCol5BottomImageTitle
       }
     }
   }

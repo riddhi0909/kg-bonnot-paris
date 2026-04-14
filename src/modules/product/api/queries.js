@@ -1,7 +1,11 @@
-import { gql } from "@apollo/client";
-import { PRODUCT_CARD_FRAGMENT } from "@/modules/product/api/fragments";
+import {
+    gql
+} from "@apollo/client";
+import {
+    PRODUCT_CARD_FRAGMENT
+} from "@/modules/product/api/fragments";
 
-export const GET_PRODUCT_GLOBAL_SETTINGS = gql`
+export const GET_PRODUCT_GLOBAL_SETTINGS = gql `
   query GetProductGlobalSettings {
     themeSettings {
       globalAcfFields {
@@ -20,8 +24,8 @@ export const GET_PRODUCT_GLOBAL_SETTINGS = gql`
         profileDescription
         profileButtonTitle
         profileButtonLink
-         icaImage {
-        node {
+        icaImage {
+          node {
             sourceUrl
           }
         }
@@ -32,7 +36,7 @@ export const GET_PRODUCT_GLOBAL_SETTINGS = gql`
   }
 `;
 
-export const GET_PRODUCTS = gql`
+export const GET_PRODUCTS = gql `
   query GetProducts($first: Int!, $after: String) {
     products(first: $first, after: $after) {
       pageInfo {
@@ -47,7 +51,7 @@ export const GET_PRODUCTS = gql`
   ${PRODUCT_CARD_FRAGMENT}
 `;
 
-export const GET_PRODUCT_BY_SLUG = gql`
+export const GET_PRODUCT_BY_SLUG = gql `
   query GetProductBySlug($id: ID!, $idType: ProductIdTypeEnum = SLUG) {
     product(id: $id, idType: $idType) {
       id
@@ -69,7 +73,7 @@ export const GET_PRODUCT_BY_SLUG = gql`
         opengraphDescription
         metaDesc
       }
-      ...on Product {
+      ... on Product {
         image {
           sourceUrl
           altText
@@ -87,59 +91,85 @@ export const GET_PRODUCT_BY_SLUG = gql`
           }
         }
         productAcfFields {
+          productType
           productGallery {
             nodes {
               mimeType
               mediaItemUrl
               altText
             }
-        }
-        showRealatedProductsSection
-        selectRelatedProduct {
-          nodes {
-            __typename
-            id
-            slug
-            uri
-            ... on Product {
-              image {
-                sourceUrl
-                altText
-              }
-              featuredImage {
-                node {
+          }
+          productDescriptionLink {
+            productDescriptionTitle
+            productDescriptionTextLink
+          }
+          showRealatedProductsSection
+          selectRelatedProduct {
+            nodes {
+              id
+              slug
+              uri
+              ... on Product {
+                id
+                databaseId
+                slug
+                uri
+                name
+
+                image {
                   sourceUrl
+                  altText
+                }
+                featuredImage {
+                  node {
+                    sourceUrl
+                  }
+                }
+                productCategories {
+                  nodes {
+                    name
+                  }
                 }
               }
-              productCategories {
-                nodes {
-                  name
+              ... on SimpleProduct {
+                price
+                regularPrice
+                salePrice
+                galleryImages(first: 2) {
+                  nodes {
+                    sourceUrl
+                    mediaItemUrl
+                    altText
+                  }
                 }
               }
-            }
-            ... on SimpleProduct {
-              price
-              regularPrice
-              salePrice
-            }
-            ... on VariableProduct {
-              price
-              regularPrice
-              variations {
-                nodes {
-                  price
+              ... on VariableProduct {
+                price
+                regularPrice
+                variations {
+                  nodes {
+                    price
+                  }
+                }
+                galleryImages(first: 2) {
+                  nodes {
+                    sourceUrl
+                    mediaItemUrl
+                    altText
+                  }
                 }
               }
             }
           }
         }
       }
-    }
       ... on SimpleProduct {
         price
         regularPrice
         salePrice
         stockStatus
+        manageStock
+        stockQuantity
         image {
           sourceUrl
           altText
@@ -162,6 +192,8 @@ export const GET_PRODUCT_BY_SLUG = gql`
         price
         regularPrice
         stockStatus
+        manageStock
+        stockQuantity
         image {
           sourceUrl
           altText

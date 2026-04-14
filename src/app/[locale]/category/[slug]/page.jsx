@@ -12,6 +12,7 @@ import {
 import { TestimonialsSection } from "@/modules/common/components/TestimonialsSection";
 import { BeforeFooterSection } from "@/modules/common/components/BeforeFooterSection";
 import { FaqSection } from "@/modules/common/components/FaqSection";
+import { CategoryBreadcrumbs } from "@/modules/category/components/CategoryBreadcrumbs";
 import { CategoryPlpSection } from "@/modules/category/components/CategoryPlpSection";
 import { fetchInstagramFeeds } from "@/modules/cms/services/cms-page-service";
 
@@ -100,6 +101,7 @@ export default async function CategoryPage({ params }) {
 
   return (
     <div className="w-full bg-[#fffaf5]">
+       <CategoryBreadcrumbs locale={locale} currentLabel={category.name} />
       <div className="mx-auto w-full max-w-[1440px]">
         {/* Hero — dual 720 × 480 desktop (Figma PLP) */}
         <div className="grid grid-cols-1 min-[767px]:grid-cols-2">

@@ -3,9 +3,13 @@
 import { useMutation } from "@apollo/client/react";
 import { ADD_TO_CART } from "@/modules/cart/api/mutations";
 import { useCartStore } from "@/modules/cart/store/cart-store";
+import { errorToCartMessage } from "@/modules/cart/utils/cart-messages";
+import { qtyInCartForItem } from "@/modules/cart/utils/product-stock";
 
 /**
  * Local cart + optional WooCommerce `addToCart` when `productDatabaseId` is set.
+ * The line is added locally first, the drawer opens, then the server is synced.
+ * Remote sync is best-effort: failures are logged in development only so headless/session issues do not spam users with alerts.
  */
 export function useCart() {
   const lines = useCartStore((s) => s.lines);
@@ -29,26 +33,50 @@ export function useCart() {
    * @param {number} [p.qty]
    * @param {boolean} [p.syncRemote]
    * @param {string} [p.imageUrl]
+   * @param {number} [p.maxStock] When set (>0), cannot add more than this total (with cart), e.g. from product.stockQuantity.
    */
   async function addToCart(p) {
+    const qty = p.qty ?? 1;
+    const max = p.maxStock;
+    if (max != null && Number.isFinite(max) && max > 0) {
+      const inCart = qtyInCartForItem(useCartStore.getState().lines, {
+        id: p.id,
+        databaseId: p.databaseId,
+      });
+      if (inCart + qty > max) {
+        return;
+      }
+    }
     addLine({
       id: p.id,
       databaseId: p.databaseId,
       slug: p.slug,
       name: p.name,
       unitPriceBase: p.unitPriceBase,
-      qty: p.qty ?? 1,
+      qty,
       imageUrl: p.imageUrl,
     });
-    if (p.syncRemote && p.databaseId != null) {
-      await mutate({
-        variables: {
-          productId: Number(p.databaseId),
-          quantity: p.qty ?? 1,
-        },
-      });
-    }
     openDrawer();
+
+    if (p.syncRemote && p.databaseId != null) {
+      try {
+        const result = await mutate({
+          variables: {
+            productId: Number(p.databaseId),
+            quantity: qty,
+          },
+        });
+        if (result.errors?.length) {
+          throw Object.assign(new Error(result.errors[0].message), {
+            graphQLErrors: result.errors,
+          });
+        }
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[cart] WooCommerce sync failed:", errorToCartMessage(e));
+        }
+      }
+    }
   }
 
   return {

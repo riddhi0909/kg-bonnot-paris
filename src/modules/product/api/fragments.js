@@ -31,6 +31,9 @@ export const RELATED_PRODUCT_FOR_ACF_FRAGMENT = gql `
       price
       regularPrice
       salePrice
+      stockStatus
+      manageStock
+      stockQuantity
       image {
         sourceUrl
         altText
@@ -46,6 +49,9 @@ export const RELATED_PRODUCT_FOR_ACF_FRAGMENT = gql `
       price
       regularPrice
       salePrice
+      stockStatus
+      manageStock
+      stockQuantity
       image {
         sourceUrl
         altText
@@ -141,6 +147,8 @@ export const PRODUCT_DETAIL_FRAGMENT = gql `
       regularPrice
       salePrice
       stockStatus
+      manageStock
+      stockQuantity
       image {
         sourceUrl
         altText
@@ -150,6 +158,8 @@ export const PRODUCT_DETAIL_FRAGMENT = gql `
       price
       regularPrice
       stockStatus
+      manageStock
+      stockQuantity
       image {
         sourceUrl
         altText

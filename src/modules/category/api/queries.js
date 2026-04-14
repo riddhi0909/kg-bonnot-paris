@@ -6,11 +6,11 @@ import {
 } from "@/modules/product/api/fragments";
 
 export const GET_PRODUCT_CATEGORIES = gql `
-  query GetProductCategories($first: Int!, $after: String) {
+  query GetProductCategories($first: Int!, $after: String , $hideEmpty: Boolean = true) {
     productCategories(
       first: $first
       after: $after
-      where: { hideEmpty: true }
+      where: { hideEmpty: $hideEmpty }
     ) {
       pageInfo {
         hasNextPage
@@ -271,6 +271,9 @@ export const GET_GLOBAL_ACF_FIELDS = gql `
           title
           description
         }
+        categoryTitle
+        categoryDescription
+        subcategoryTitle
       }
     }
   }

@@ -119,10 +119,14 @@ export function HeroSection({
       </div>
 
       {/* Column 3: Center — stays visible, image scales UP */}
-      <div className="hero-col hero-col-center hero-col-middle relative z-10 flex mt-[0px] flex-col 
-      min-[768px]:w-[min(100%,190px)] min-[768px]:max-w-[190px] min-[768px]:shrink-0 
-      min-[1024px]:w-[min(100%,210px)] min-[1024px]:max-w-[210px] 
-      min-[1440px]:!w-[320px] min-[1440px]:!max-w-[320px]">
+      <div
+        className={
+          "hero-col hero-col-center hero-col-middle relative z-10 flex mt-[0px] flex-col " +
+          "min-[768px]:w-[min(100%,190px)] min-[768px]:max-w-[190px] min-[768px]:shrink-0 " +
+          "min-[1024px]:w-[min(100%,210px)] min-[1024px]:max-w-[210px] " +
+          "min-[1440px]:!w-[320px] min-[1440px]:!max-w-[320px]"
+        }
+      >
         <div className="flex min-h-0 flex-col gap-6 pb-6 min-[768px]:min-h-0 min-[768px]:justify-center min-[768px]:gap-6 min-[768px]:pb-6 min-[1024px]:gap-8 min-[1024px]:pb-8 min-[1440px]:min-h-[760px] min-[1440px]:gap-[60px] min-[1440px]:pb-[90px]">
           {/* Heading: fades up and out */}
           <h1
@@ -136,27 +140,14 @@ export function HeroSection({
           <div ref={setRef("cta")} className="hero-text flex flex-col gap-2">
             <Link
               href={btn1Link}
-              className="flex h-10 items-center justify-center gap-[15px]
-                bg-[#001122] px-[15px]
-                border border-[rgba(0,17,34,0.2)]
-                text-sm font-semibold leading-[1.428] text-white
-                transition-all duration-300
-                hover:bg-transparent hover:text-[#001122]"
+              className="flex h-10 items-center justify-center gap-[15px] bg-[#001122] px-[15px] border border-[rgba(0,17,34,0.2)] text-sm font-semibold leading-[1.428] text-white transition-all duration-300 hover:bg-transparent hover:text-[#001122]"
             >
               {btn1Text}
               <span className="text-xs" aria-hidden>↗</span>
             </Link>
             <Link
               href={btn2Link}
-              className="flex h-10 w-full max-w-[220px]
-                items-center justify-center gap-[15px]
-                border border-[rgba(0,17,34,0.2)]
-                bg-transparent px-[15px]
-                text-sm font-semibold leading-[1.428] text-[#001122]
-                transition-all duration-300
-                hover:bg-[#001122]
-                hover:text-white
-                hover:border-[#001122]"
+              className="flex h-10 w-full max-w-[220px] items-center justify-center gap-[15px] border border-[rgba(0,17,34,0.2)] bg-transparent px-[15px] text-sm font-semibold leading-[1.428] text-[#001122] transition-all duration-300 hover:bg-[#001122] hover:text-white hover:border-[#001122]"
             >
               {btn2Text}
               <span className="text-xs" aria-hidden>↗</span>
