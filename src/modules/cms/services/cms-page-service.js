@@ -109,10 +109,14 @@ export async function fetchBeforeFooterSettings(client) {
  * @param {import('@apollo/client').ApolloClient} client
  */
 export async function fetchInstagramFeeds(client) {
+  
   const { data, errors } = await client.query({
     query: GET_INSTAGRAM_FEEDS,
     fetchPolicy: "no-cache",
   });
+
+  console.log("data = ", data);
+
   if (errors?.length) throw new Error(errors.map((e) => e.message).join(", "));
   const nodes = data?.allKGInstagramFeeds?.nodes ?? [];
 
